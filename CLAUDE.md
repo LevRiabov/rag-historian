@@ -8,7 +8,7 @@ Working notes for Claude Code in this repo. Keep tight — every line is context
 
 ## Current state
 
-**Module: 0 — Environment setup** (in progress)
+**Module: 1 — LLM API Foundations** (in progress)
 
 Update the line above whenever a module finishes or the next one starts. The current-module marker is how I keep my bearings between sessions.
 
