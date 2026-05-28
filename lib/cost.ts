@@ -72,6 +72,36 @@ export const ANTHROPIC_PRICES: Record<string, ModelPricing> = {
   [CLAUDE_MODELS.haiku]: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
 } satisfies Record<ClaudeModel, ModelPricing>;
 
+/**
+ * LM Studio model identifiers (matches the user's loaded models).
+ *
+ * LM Studio uses `org/model-name` format — passing the bare model name causes
+ * it to look up a *different* copy and waste VRAM loading a duplicate. Use
+ * these constants to stay aligned with what's actually in the runtime.
+ *
+ * Reasoning capability varies by family:
+ *   - gpt-oss-20b → leveled (`'low'|'medium'|'high'`) via `reasoning_effort`
+ *   - Gemma 4 / Qwen3 → boolean via `chat_template_kwargs.enable_thinking`
+ *
+ * Our wrapper's `reasoning` opt accepts BOTH shapes; the lmstudio client
+ * translates appropriately.
+ */
+export const LM_STUDIO_MODELS = {
+  /** OpenAI's open-source 20B; tool-trained; honors `reasoning_effort` levels. */
+  gptOss20b: 'openai/gpt-oss-20b',
+  /** Google Gemma 4 efficient-4B. Boolean reasoning. */
+  gemma4_4b: 'google/gemma-4-e4b',
+  /** Google Gemma 4 mid-tier (26B-a4b variant). Boolean reasoning. */
+  gemma4_26b: 'google/gemma-4-26b-a4b',
+  /** Qwen 3.6 mid-tier (35B-a3b variant). Boolean reasoning. */
+  qwen3_35b: 'qwen/qwen3.6-35b-a3b',
+} as const;
+
+/** Union of known LM Studio model IDs. Not enforced as a type bound on
+ *  config (LM Studio is open-ended — any GGUF works), but useful for the
+ *  models we routinely test against. */
+export type LMStudioModel = (typeof LM_STUDIO_MODELS)[keyof typeof LM_STUDIO_MODELS];
+
 /** LM Studio is local — zero $ cost regardless of model. */
 export const LMSTUDIO_PRICING: ModelPricing = {
   input: 0,

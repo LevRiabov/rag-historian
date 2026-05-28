@@ -6,8 +6,8 @@ Your first end-to-end LLM call. **Module 1 deliverable.**
 
 - Defining a tool with Zod — one schema, three uses (API contract, runtime validation, typed executor)
 - The agentic tool loop (`runTools`) — model calls a tool, sees the result, decides next move, until it has the final answer
-- Running the *same* code against **two providers** — Claude (cloud) and LM Studio (local) — to see the SDK differences side by side
-- Token-level cost accounting (Anthropic) and zero-cost local inference (LM Studio)
+- Running the *same* code against **two providers** — Claude (cloud) and Ollama (local) — to see the SDK differences side by side
+- Token-level cost accounting (Anthropic) and zero-cost local inference (Ollama)
 
 ## What it solves
 
@@ -24,7 +24,7 @@ pnpm dev mini-projects/01-hello-llm/index.ts
 Each path is optional — the script skips whichever isn't configured:
 
 - **Claude** runs if `ANTHROPIC_API_KEY` is set in `.env`. Defaults to `CLAUDE_MODELS.haiku` (cheapest). Change the `model` constant in [index.ts](index.ts) to test Sonnet or Opus.
-- **LM Studio** runs if a server is reachable at `http://localhost:1234`. The default model name is `gpt-oss-20b`; override via `LM_STUDIO_MODEL` env var to match the model you've loaded.
+- **Ollama** runs if a server is reachable at `http://localhost:11434`. Default model is `gpt-oss:20b` (pull via `ollama pull gpt-oss:20b`); override via `OLLAMA_MODEL` env var to use a different one (e.g., `gemma4:latest`).
 
 ## Expected output
 
@@ -48,7 +48,7 @@ Exact numbers vary by model, prompt cache state, and the model's text style — 
 - **Swap the model.** `CLAUDE_MODELS.sonnet` or `.opus` in the Claude block. Watch tokens and cost scale.
 - **Add a second tool.** A trivial async one like `get_current_time()` returning `new Date().toISOString()` shows the async path actually traverse. The wrapper already supports async (`execute` can return `Promise<unknown>`).
 - **Make the calculator fail on some inputs** — throw, or return an `"ERROR: ..."` string. Watch the model adapt on the next turn. This is the "errors as strings" pattern.
-- **Try a tool-shy model on LM Studio.** Gemma 3 27B sometimes ignores tools and answers from memory; gpt-oss-20b is tool-trained and follows the schema. Comparing the two is the lesson.
+- **Try a tool-shy model via Ollama.** Some Gemma variants ignore tools and answer from memory; gpt-oss-20b is tool-trained and follows the schema. Comparing the two is the lesson.
 - **Tighten the description.** Change `description: 'Perform a basic arithmetic operation. Use this for any math.'` to something vague like `'Compute things'` — see whether the model still calls it reliably.
 
 ## Related code

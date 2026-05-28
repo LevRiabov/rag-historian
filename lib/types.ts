@@ -61,6 +61,17 @@ export type StopReason = 'end_turn' | 'max_tokens' | 'tool_use' | 'stop_sequence
 /** Return type of a non-streaming chat call. */
 export interface ChatResult {
   text: string;
+  /**
+   * Model's private chain-of-thought when reasoning was enabled. Undefined when
+   * reasoning is off OR the model/runtime didn't return any.
+   *
+   * Both providers return this separately from `text`:
+   *   - Anthropic: as `thinking` content blocks alongside the `text` blocks
+   *   - Ollama / LM Studio (OpenAI-compat): in `choice.message.reasoning`
+   * Surfacing it lets you see *what changed* between reasoning and no-reasoning
+   * runs — otherwise the only visible signal is token counts.
+   */
+  reasoning?: string;
   usage: Usage;
   cost: Cost;
   stopReason: StopReason;
@@ -123,6 +134,8 @@ export interface ToolLoopResult {
 /** Return type of `structured()` — parsed data + accounting. */
 export interface StructuredResult<T> {
   data: T;
+  /** Chain-of-thought when reasoning was enabled. See `ChatResult.reasoning`. */
+  reasoning?: string;
   usage: Usage;
   cost: Cost;
   raw: unknown;

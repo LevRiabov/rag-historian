@@ -17,7 +17,7 @@ export type {
   StructuredOpts,
 } from './claude.ts';
 export { createClaude } from './claude.ts';
-export type { ClaudeModel } from './cost.ts';
+export type { ClaudeModel, LMStudioModel } from './cost.ts';
 export {
   ANTHROPIC_PRICES,
   addCost,
@@ -26,6 +26,7 @@ export {
   calculateAnthropicCost,
   calculateLMStudioCost,
   formatCost,
+  LM_STUDIO_MODELS,
   LMSTUDIO_PRICING,
   PRICES_AS_OF,
 } from './cost.ts';
@@ -37,6 +38,21 @@ export type {
   LMStudioStructuredOpts,
 } from './lmstudio.ts';
 export { createLMStudio } from './lmstudio.ts';
+export type { CreateLocalLLMConfig, LocalLLM, LocalProvider } from './local-llm.ts';
+export { createLocalLLM } from './local-llm.ts';
+export type { OllamaModel } from './ollama.ts';
+export { createOllama, OLLAMA_MODELS } from './ollama.ts';
+export type {
+  AbTestCase,
+  AbTestPrompt,
+  AbTestRow,
+  ExtractVars,
+  Prompt,
+  PromptDef,
+  PromptMessage,
+  PromptVars,
+} from './prompts.ts';
+export { abTest, definePrompt, formatAbTest, tag, tags } from './prompts.ts';
 export type { AnthropicTool, OpenAITool } from './tools.ts';
 export { defineTool } from './tools.ts';
 export type { RequestInfo, ResponseInfo, ToolCallInfo, Tracer } from './tracer.ts';

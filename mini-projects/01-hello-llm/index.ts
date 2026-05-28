@@ -23,9 +23,11 @@ import { z } from 'zod';
 import {
   CLAUDE_MODELS,
   createClaude,
-  createLMStudio,
+  createLocalLLM,
   defineTool,
   formatCost,
+  LM_STUDIO_MODELS,
+  OLLAMA_MODELS,
   type ToolStep,
 } from '../../lib/index.ts';
 
@@ -99,20 +101,21 @@ async function runClaude(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Run against LM Studio
+// Run against a local LLM (LM Studio by default; flip LOCAL_LLM_PROVIDER=ollama
+// to switch runtimes). Model defaults differ per runtime because their model
+// IDs differ (`openai/gpt-oss-20b` vs `gpt-oss:20b`) — the helper forwards
+// only the section matching the chosen provider.
 // ---------------------------------------------------------------------------
-async function runLMStudio(): Promise<void> {
-  console.log('=== LM Studio (local) ===');
+async function runLocal(): Promise<void> {
+  const local = createLocalLLM({
+    lmstudio: { defaultModel: LM_STUDIO_MODELS.gptOss20b },
+    ollama: { defaultModel: OLLAMA_MODELS.gptOss20b },
+  });
+  console.log(`=== ${local.label} ===`);
   console.log(`Q: ${question}\n`);
 
-  // Defaults to gpt-oss-20b; override with LM_STUDIO_MODEL env var if you've
-  // loaded a different model (e.g., 'gemma-3-27b').
-  const lms = createLMStudio({
-    defaultModel: process.env.LM_STUDIO_MODEL ?? 'gpt-oss-20b',
-  });
-
   try {
-    const result = await lms.runTools({
+    const result = await local.client.runTools({
       messages: [{ role: 'user', content: question }],
       tools: [calculator],
       onStep: logStep,
@@ -121,12 +124,12 @@ async function runLMStudio(): Promise<void> {
     console.log(`\nA: ${result.text}`);
     console.log(`Stop: ${result.stop}`);
     console.log(`Tokens: in=${result.usage.inputTokens}, out=${result.usage.outputTokens}`);
-    console.log(`Cost: ${formatCost(result.cost)} (LM Studio = local = free)\n`);
+    console.log(`Cost: ${formatCost(result.cost)} (local = free)\n`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.log(`Skipping LM Studio — could not connect or model unavailable (${msg})\n`);
+    console.log(`Skipping ${local.label} — could not connect or model unavailable (${msg})\n`);
   }
 }
 
 await runClaude();
-await runLMStudio();
+await runLocal();

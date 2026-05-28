@@ -17,7 +17,17 @@
 import type { Cost, Usage } from './types.ts';
 
 export interface RequestInfo {
-  provider: 'anthropic' | 'lmstudio';
+  /**
+   * Which provider the request went through.
+   *   - 'anthropic' — Claude via the Anthropic SDK
+   *   - 'lmstudio'  — LM Studio AND Ollama via the OpenAI-compatible endpoint
+   *                   (chat / streamText / stream / runTools)
+   *   - 'ollama'    — Ollama's NATIVE /api/chat endpoint, used by
+   *                   `createOllama().structured()` to get reliable grammar-
+   *                   constrained output (the OpenAI-compat layer's renderers
+   *                   don't always engage GBNF on every model).
+   */
+  provider: 'anthropic' | 'lmstudio' | 'ollama';
   model: string;
   /** Label like 'chat' / 'streamText' / 'runTools' / 'structured'. */
   operation: string;

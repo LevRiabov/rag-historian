@@ -76,8 +76,49 @@ export interface CallOpts {
    *  prompts — first call writes the cache (1.25× input), later calls read it
    *  (0.1× input). Net win after just a few calls with the same prefix. */
   cacheSystem?: boolean;
-  /** 0–1; default 1.0. Lower for deterministic tasks. */
+  /** 0–1; default 1.0. Lower for deterministic tasks. NOTE: ignored when
+   *  `reasoning` is set — Anthropic's extended thinking requires temperature=1. */
   temperature?: number;
+  /**
+   * Enable extended thinking. The model emits private reasoning content blocks
+   * before the visible response.
+   *   - 'low'    → 1k token thinking budget   (fast, mild benefit)
+   *   - 'medium' → 4k token thinking budget   (most common useful setting)
+   *   - 'high'   → 16k token thinking budget  (hard problems only)
+   *   - `true`   → shorthand for 'medium'
+   *   - `false` / undefined → no thinking
+   * Boolean is supported for parity with `lib/lmstudio.ts` where some local
+   * models only accept a boolean toggle. `maxTokens` is auto-bumped to make
+   * room for visible output on top of the thinking budget.
+   */
+  reasoning?: 'low' | 'medium' | 'high' | boolean;
+}
+
+/** Token budgets per reasoning level for Anthropic's extended thinking. */
+const REASONING_BUDGETS = { low: 1024, medium: 4096, high: 16384 } as const;
+
+/**
+ * Build the part of an Anthropic request that depends on reasoning. Returns
+ * `max_tokens` (auto-bumped above the thinking budget) and an optional
+ * `thinking` block. Centralized so every method behaves the same way.
+ *
+ * Boolean `true` maps to `'medium'` — a reasonable default for "enable thinking
+ * without specifying a level." Boolean `false` is equivalent to undefined.
+ */
+function buildReasoningParams(
+  reasoning: 'low' | 'medium' | 'high' | boolean | undefined,
+  providedMaxTokens: number | undefined,
+  defaultMaxTokens: number,
+): { max_tokens: number; thinking?: { type: 'enabled'; budget_tokens: number } } {
+  const baseMax = providedMaxTokens ?? defaultMaxTokens;
+  if (!reasoning) return { max_tokens: baseMax }; // undefined or false
+  const level = reasoning === true ? 'medium' : reasoning;
+  const budget = REASONING_BUDGETS[level];
+  return {
+    // Ensure at least 1024 tokens of visible output on top of the thinking budget.
+    max_tokens: Math.max(baseMax, budget + 1024),
+    thinking: { type: 'enabled', budget_tokens: budget },
+  };
 }
 
 export interface ChatCallOpts extends CallOpts {
@@ -143,8 +184,8 @@ export function createClaude(config: ClaudeConfig = {}) {
     try {
       const response = await sdk.messages.create({
         model,
-        max_tokens: opts.maxTokens ?? defaultMaxTokens,
-        ...(opts.temperature !== undefined && { temperature: opts.temperature }),
+        ...buildReasoningParams(opts.reasoning, opts.maxTokens, defaultMaxTokens),
+        ...(opts.temperature !== undefined && !opts.reasoning && { temperature: opts.temperature }),
         ...(opts.system !== undefined && {
           system: makeSystem(opts.system, opts.cacheSystem ?? false),
         }),
@@ -155,6 +196,7 @@ export function createClaude(config: ClaudeConfig = {}) {
       const cost = calculateAnthropicCost(usage, model);
       const stopReason = mapStopReason(response.stop_reason);
       const text = extractText(response.content);
+      const reasoning = extractThinking(response.content);
 
       safeCall(tracer, 'onResponse', {
         usage,
@@ -163,7 +205,7 @@ export function createClaude(config: ClaudeConfig = {}) {
         stopReason: response.stop_reason ?? 'unknown',
       });
 
-      return { text, usage, cost, stopReason, raw: response };
+      return { text, reasoning, usage, cost, stopReason, raw: response };
     } catch (err) {
       safeCall(tracer, 'onError', err, { operation: 'chat' });
       throw err;
@@ -199,8 +241,8 @@ export function createClaude(config: ClaudeConfig = {}) {
     try {
       const stream = sdk.messages.stream({
         model,
-        max_tokens: opts.maxTokens ?? defaultMaxTokens,
-        ...(opts.temperature !== undefined && { temperature: opts.temperature }),
+        ...buildReasoningParams(opts.reasoning, opts.maxTokens, defaultMaxTokens),
+        ...(opts.temperature !== undefined && !opts.reasoning && { temperature: opts.temperature }),
         ...(opts.system !== undefined && {
           system: makeSystem(opts.system, opts.cacheSystem ?? false),
         }),
@@ -248,8 +290,8 @@ export function createClaude(config: ClaudeConfig = {}) {
     });
     return sdk.messages.stream({
       model,
-      max_tokens: opts.maxTokens ?? defaultMaxTokens,
-      ...(opts.temperature !== undefined && { temperature: opts.temperature }),
+      ...buildReasoningParams(opts.reasoning, opts.maxTokens, defaultMaxTokens),
+      ...(opts.temperature !== undefined && !opts.reasoning && { temperature: opts.temperature }),
       ...(opts.system !== undefined && {
         system: makeSystem(opts.system, opts.cacheSystem ?? false),
       }),
@@ -319,8 +361,8 @@ export function createClaude(config: ClaudeConfig = {}) {
       const t0 = Date.now();
       const response = await sdk.messages.create({
         model,
-        max_tokens: opts.maxTokens ?? defaultMaxTokens,
-        ...(opts.temperature !== undefined && { temperature: opts.temperature }),
+        ...buildReasoningParams(opts.reasoning, opts.maxTokens, defaultMaxTokens),
+        ...(opts.temperature !== undefined && !opts.reasoning && { temperature: opts.temperature }),
         ...(opts.system !== undefined && {
           system: makeSystem(opts.system, opts.cacheSystem ?? false),
         }),
@@ -439,8 +481,8 @@ export function createClaude(config: ClaudeConfig = {}) {
     const t0 = Date.now();
     const response = await sdk.messages.create({
       model,
-      max_tokens: opts.maxTokens ?? defaultMaxTokens,
-      ...(opts.temperature !== undefined && { temperature: opts.temperature }),
+      ...buildReasoningParams(opts.reasoning, opts.maxTokens, defaultMaxTokens),
+      ...(opts.temperature !== undefined && !opts.reasoning && { temperature: opts.temperature }),
       ...(opts.system !== undefined && {
         system: makeSystem(opts.system, opts.cacheSystem ?? false),
       }),
@@ -472,10 +514,20 @@ export function createClaude(config: ClaudeConfig = {}) {
 
     const parsed = opts.schema.safeParse(block.input);
     if (!parsed.success) {
-      throw new Error(`Structured output failed schema validation: ${parsed.error.message}`);
+      // Include the raw tool input so debugging doesn't require re-running.
+      throw new Error(
+        `Structured output failed schema validation: ${parsed.error.message}\n` +
+          `Model produced: ${JSON.stringify(block.input, null, 2)}`,
+      );
     }
 
-    return { data: parsed.data, usage, cost, raw: response };
+    return {
+      data: parsed.data,
+      reasoning: extractThinking(response.content),
+      usage,
+      cost,
+      raw: response,
+    };
   }
 
   return { chat, streamText, stream, runTools, structured };
@@ -509,6 +561,27 @@ function extractText(content: ReadonlyArray<{ type: string }>): string {
     .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
     .map((b) => b.text)
     .join('');
+}
+
+/**
+ * Pull the model's chain-of-thought out of a content block array.
+ *
+ * When extended thinking is enabled, Anthropic prepends one or more `thinking`
+ * blocks before the visible `text` blocks. Each carries the private reasoning
+ * (and a `signature` we don't need here). Returns undefined when no thinking
+ * blocks are present — so callers can distinguish "thinking was off" from
+ * "thinking ran but was empty."
+ *
+ * Note: `redacted_thinking` blocks (rare; appear when safety filters intercept
+ * a chain of thought) are deliberately NOT surfaced — their `data` field is an
+ * opaque ciphertext, not human-readable text.
+ */
+function extractThinking(content: ReadonlyArray<{ type: string }>): string | undefined {
+  const thinking = content
+    .filter((b): b is { type: 'thinking'; thinking: string } => b.type === 'thinking')
+    .map((b) => b.thinking)
+    .join('');
+  return thinking.length > 0 ? thinking : undefined;
 }
 
 function extractUsage(u: {

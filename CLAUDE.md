@@ -8,7 +8,7 @@ Working notes for Claude Code in this repo. Keep tight — every line is context
 
 ## Current state
 
-**Module: 1 — LLM API Foundations** (in progress)
+**Module: 2 — Prompting & Structured Outputs** (in progress)
 
 Update the line above whenever a module finishes or the next one starts. The current-module marker is how I keep my bearings between sessions.
 
@@ -20,7 +20,7 @@ Update the line above whenever a module finishes or the next one starts. The cur
 - **Lint + format:** Biome (single tool, replaces ESLint + Prettier)
 - **Env:** `dotenv`, single `.env` at repo root
 - **LLM SDKs:** `@anthropic-ai/sdk` for Claude; OpenAI SDK reused for OpenAI proper + LM Studio (OpenAI-compatible) when modules need them
-- **Local inference:** LM Studio is primary (`http://localhost:1234/v1`); Ollama secondary (e.g., BGE-M3 in Module 3)
+- **Local inference:** LM Studio is primary (`http://localhost:1234/v1`); Ollama secondary. Mini-projects pick via `createLocalLLM({ lmstudio, ollama })`; `LOCAL_LLM_PROVIDER=ollama` flips at runtime. LM Studio's GBNF is a hard token-level constraint; Ollama's per-model renderers engage GBNF inconsistently (Gemma 4 leaks out-of-enum values).
 - **DB:** Postgres 16 + pgvector — landed in Module 3, not before
 - **Tracing:** Langfuse — wired in Module 1, not Module 0
 - **Evals:** Promptfoo — Module 5
