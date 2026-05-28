@@ -17,7 +17,12 @@ export type {
   StructuredOpts,
 } from './claude.ts';
 export { createClaude } from './claude.ts';
-export type { ClaudeModel, LMStudioModel } from './cost.ts';
+export type {
+  ClaudeModel,
+  LMStudioEmbeddingModel,
+  LMStudioModel,
+  OpenAIEmbeddingModel,
+} from './cost.ts';
 export {
   ANTHROPIC_PRICES,
   addCost,
@@ -25,11 +30,27 @@ export {
   CLAUDE_MODELS,
   calculateAnthropicCost,
   calculateLMStudioCost,
+  calculateLMStudioEmbeddingCost,
+  calculateOpenAIEmbeddingCost,
+  EMBEDDING_DIMENSIONS,
   formatCost,
+  LM_STUDIO_EMBEDDING_MODELS,
   LM_STUDIO_MODELS,
   LMSTUDIO_PRICING,
+  OPENAI_EMBEDDING_MODELS,
+  OPENAI_EMBEDDING_PRICES,
   PRICES_AS_OF,
 } from './cost.ts';
+export type {
+  Embedder,
+  EmbedderConfig,
+  EmbeddingProvider,
+  EmbedOpts,
+  EmbedResult,
+  LMStudioEmbedderConfig,
+  OpenAIEmbedderConfig,
+} from './embeddings.ts';
+export { createEmbedder } from './embeddings.ts';
 export type {
   LMStudioCallOpts,
   LMStudioChatOpts,

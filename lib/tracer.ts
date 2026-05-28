@@ -20,14 +20,15 @@ export interface RequestInfo {
   /**
    * Which provider the request went through.
    *   - 'anthropic' — Claude via the Anthropic SDK
+   *   - 'openai'    — OpenAI proper (embeddings in Module 3, frontier chat later)
    *   - 'lmstudio'  — LM Studio AND Ollama via the OpenAI-compatible endpoint
-   *                   (chat / streamText / stream / runTools)
+   *                   (chat / streamText / stream / runTools / embeddings)
    *   - 'ollama'    — Ollama's NATIVE /api/chat endpoint, used by
    *                   `createOllama().structured()` to get reliable grammar-
    *                   constrained output (the OpenAI-compat layer's renderers
    *                   don't always engage GBNF on every model).
    */
-  provider: 'anthropic' | 'lmstudio' | 'ollama';
+  provider: 'anthropic' | 'openai' | 'lmstudio' | 'ollama';
   model: string;
   /** Label like 'chat' / 'streamText' / 'runTools' / 'structured'. */
   operation: string;

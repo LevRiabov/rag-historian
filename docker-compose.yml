@@ -1,0 +1,29 @@
+# Local Postgres 16 + pgvector for the Roman Research Agent.
+# The `pgvector/pgvector:pg16` image is the official pgvector image on top
+# of the official postgres:16 image — same entrypoint behavior, so any .sql
+# file in /docker-entrypoint-initdb.d runs ONCE on the very first start
+# (when the data volume is empty). That's how `CREATE EXTENSION vector;`
+# gets wired in automatically — see db/init/01-extensions.sql.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-historian-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+      POSTGRES_DB: rag_historian
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag_historian"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

@@ -110,6 +110,104 @@ export const LMSTUDIO_PRICING: ModelPricing = {
   cacheRead: 0,
 };
 
+// ============================================================================
+// Embeddings (Module 3+)
+// ============================================================================
+
+/**
+ * OpenAI embedding model identifiers — the strings the API expects in
+ * `embeddings.create({ model })`.
+ *
+ * Dimensions are FIXED per model (1536 for -small, 3072 for -large).
+ * `text-embedding-3-*` models *do* support a `dimensions` request parameter
+ * for Matryoshka-style truncation, but we leave them at native size — the
+ * pgvector column type pins dimension at the schema level, and the playground
+ * compares native-shape vectors so the comparison is honest.
+ *
+ * Why -small is the default: 1536-dim is plenty for English text retrieval
+ * and 6.5× cheaper than -large ($0.02 vs $0.13 per 1M tokens). Upgrade to
+ * -large only after eval evidence demands it.
+ */
+export const OPENAI_EMBEDDING_MODELS = {
+  /** 1536-dim. Default. Fast and cheap. */
+  small: 'text-embedding-3-small',
+  /** 3072-dim. Higher quality, 6.5× the price. */
+  large: 'text-embedding-3-large',
+} as const;
+
+export type OpenAIEmbeddingModel =
+  (typeof OPENAI_EMBEDDING_MODELS)[keyof typeof OPENAI_EMBEDDING_MODELS];
+
+/**
+ * LM Studio embedding model identifiers. The ID is whatever LM Studio
+ * normalized your loaded GGUF to — for BGE-M3 the canonical name is
+ * `text-embedding-bge-m3`. Verify in LM Studio's UI / `GET /v1/models`
+ * if a call 404s on you.
+ */
+export const LM_STUDIO_EMBEDDING_MODELS = {
+  /** BAAI BGE-M3, 1024-dim. Multilingual, dense + sparse + colbert in one. */
+  bgeM3: 'text-embedding-bge-m3',
+} as const;
+
+export type LMStudioEmbeddingModel =
+  (typeof LM_STUDIO_EMBEDDING_MODELS)[keyof typeof LM_STUDIO_EMBEDDING_MODELS];
+
+interface EmbeddingPricing {
+  /** USD per million input tokens. */
+  input: number;
+}
+
+/**
+ * OpenAI embedding prices. Single rate per model — no output, no caching.
+ * Same per-million convention as ANTHROPIC_PRICES so the math stays uniform.
+ * Sources: https://openai.com/api/pricing
+ */
+export const OPENAI_EMBEDDING_PRICES: Record<string, EmbeddingPricing> = {
+  [OPENAI_EMBEDDING_MODELS.small]: { input: 0.02 },
+  [OPENAI_EMBEDDING_MODELS.large]: { input: 0.13 },
+} satisfies Record<OpenAIEmbeddingModel, EmbeddingPricing>;
+
+/**
+ * Dimension lookup for known models. Used by the embedder factory to
+ * report `.dimension` synchronously (before any API call), so callers can
+ * sanity-check against the pgvector column width at INSERT time.
+ *
+ * Unknown models return undefined — the factory will discover the dimension
+ * on the first response and cache it. Better than throwing for an unknown
+ * (LM Studio-loaded) model that may still work.
+ */
+export const EMBEDDING_DIMENSIONS: Record<string, number> = {
+  [OPENAI_EMBEDDING_MODELS.small]: 1536,
+  [OPENAI_EMBEDDING_MODELS.large]: 3072,
+  [LM_STUDIO_EMBEDDING_MODELS.bgeM3]: 1024,
+};
+
+/**
+ * USD cost from token count + model name, for embeddings.
+ *
+ * Mirrors `calculateAnthropicCost`'s shape (returns a full `Cost` record)
+ * so embedder traces can be summed alongside chat-model costs without
+ * branching on call type at the consumer. Output/cache fields stay at zero —
+ * embeddings have no notion of either.
+ */
+export function calculateOpenAIEmbeddingCost(inputTokens: number, model: string): Cost {
+  const pricing = OPENAI_EMBEDDING_PRICES[model];
+  if (!pricing) return ZERO_COST;
+  const inputUSD = (inputTokens * pricing.input) / 1_000_000;
+  return {
+    inputUSD,
+    outputUSD: 0,
+    cacheCreationUSD: 0,
+    cacheReadUSD: 0,
+    totalUSD: inputUSD,
+  };
+}
+
+/** LM Studio embedding cost — always zero, kept symmetric for tracer plumbing. */
+export function calculateLMStudioEmbeddingCost(_inputTokens: number): Cost {
+  return ZERO_COST;
+}
+
 const ZERO_COST: Cost = {
   inputUSD: 0,
   outputUSD: 0,
