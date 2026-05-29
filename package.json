@@ -17,6 +17,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",
     "dotenv": "^17.4.2",
+    "js-tiktoken": "^1.0.21",
     "openai": "^6.39.0",
     "pg": "^8.21.0",
     "pgvector": "^0.2.1",

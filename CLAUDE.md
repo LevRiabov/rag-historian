@@ -4,11 +4,11 @@ Working notes for Claude Code in this repo. Keep tight — every line is context
 
 ## Project
 
-`rag-historian` — the Roman Research Agent. Phase 1 of an eval-driven AI-engineering foundation, building an agentic research assistant over a Project Gutenberg Roman history corpus. **Source of truth for scope and module order:** [phase-1-foundation.md](phase-1-foundation.md). Always defer to it before suggesting work.
+`rag-historian` — the Roman Research Agent. Phase 1 of an eval-driven AI-engineering foundation, building an agentic research assistant over a **Caesar-focused** Project Gutenberg corpus (4 primary sources) with **multi-source contradiction handling** as a stated goal. **Sources of truth:** module order in [phase-1-foundation.md](phase-1-foundation.md); project scope + architecture in [roman-research/README.md](roman-research/README.md). Defer to both before suggesting work.
 
 ## Current state
 
-**Module: 2 — Prompting & Structured Outputs** (in progress)
+**Module: 4 — Naive RAG Build** (starting)
 
 Update the line above whenever a module finishes or the next one starts. The current-module marker is how I keep my bearings between sessions.
 
@@ -50,6 +50,8 @@ Update the line above whenever a module finishes or the next one starts. The cur
 - **Don't multi-agent the Roman agent** — single agent + good tool design wins (Module 7 pitfall).
 - **Don't over-engineer scaffolding.** Naive first, then improve based on eval failures.
 - **Don't add error handling, retries, or guardrails until they're needed.** Module 9 is for production patterns. Adding them earlier obscures actual failure modes.
+- **Don't build the web UI before Module 10.** A simple React SPA is the *demo deliverable*, not parallel work — building it during Modules 4–9 distracts from the AI-engineering capability that makes the case study credible.
+- **Don't store multiple RAG variants in parallel DB columns/tables.** Most Module 6 techniques (hybrid, reranking, query-rewriting) are query-time. Comparison happens in the eval harness against ONE canonical chunking, not via parallel storage. Only chunking variants (6.1) and contextual retrieval (6.4) get additive storage.
 
 ## When in doubt
 
