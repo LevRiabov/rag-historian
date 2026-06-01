@@ -1,2 +1,20 @@
+# pnpm 11+ moved per-package build-script approval here. pnpm auto-generates
+# this file the first time a dep with optional native bindings is installed,
+# and refuses further commands until each entry is explicitly true/false.
+#
+# All set to `false` — none of these are needed by our project:
+#   - @playwright/browser-chromium: promptfoo's browser-based providers
+#   - @swc/core: alternative transpiler (we use tsx)
+#   - onnxruntime-node: local ML inference (we use LM Studio for that)
+#   - protobufjs: serialization (only needed if rebuilding)
+#   - sharp: image processing (only needed for promptfoo's UI features)
+#
+# If you ever need one of these to actually build, flip its value to true
+# and re-run `pnpm install`.
 allowBuilds:
+  '@playwright/browser-chromium': false
+  '@swc/core': false
   esbuild: true
+  onnxruntime-node: false
+  protobufjs: false
+  sharp: false

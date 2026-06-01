@@ -8,9 +8,11 @@ Working notes for Claude Code in this repo. Keep tight — every line is context
 
 ## Current state
 
-**Module: 4 — Naive RAG Build** (starting)
+**Module: 6 — Advanced RAG Techniques** (starting)
 
 Update the line above whenever a module finishes or the next one starts. The current-module marker is how I keep my bearings between sessions.
+
+Baseline numbers + eval methodology locked in: see [notes/module-5-evals.md](notes/module-5-evals.md). Every Module 6 technique gets A/B'd against those tables.
 
 ## Stack
 

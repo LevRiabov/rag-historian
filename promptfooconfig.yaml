@@ -1,0 +1,165 @@
+# Promptfoo configuration — side-by-side LLM comparison for the Roman Research Agent.
+#
+# What this does:
+#   1. Loads the same question/chunks/ideal_answer test cases our harness uses,
+#      pre-built via `pnpm dev evals/promptfoo/build-tests.ts` (retrieval is
+#      "frozen" so every model sees identical chunks — the comparison
+#      isolates GENERATION quality from retrieval variance).
+#   2. Runs each test against every listed provider — local LM Studio models
+#      side-by-side. Easy to add Claude / OpenAI providers later.
+#   3. Scores each answer with Claude Haiku as an LLM-rubric judge (single
+#      faithfulness rubric for the MVP; complementary to our harness which
+#      adds completeness + refusal correctness).
+#   4. Web UI (`pnpm exec promptfoo view`) renders a comparison matrix —
+#      cells show pass/fail + the full answer; ideal for sharing with
+#      non-technical stakeholders.
+#
+# How it differs from `evals/run.ts`:
+#   - Our harness: retrieval metrics (recall@k, MRR) + generation metrics on
+#     ONE provider per run. Best for measuring Module 6 technique changes.
+#   - Promptfoo: side-by-side MULTI-provider comparison + UI. Best for
+#     model selection (e.g. "is qwen 9B worth the speed cost vs gpt-oss 20B?").
+#   Both consume the same golden-set.json — single source of truth.
+
+description: 'Roman Research Agent — side-by-side LLM comparison (local models)'
+
+providers:
+  # ---- Local LM Studio via custom provider -----------------------------
+  # We use a custom JS provider (rather than openai:chat:...) because
+  # Promptfoo's built-in OpenAI provider doesn't reliably forward LM
+  # Studio's `chat_template_kwargs` body field, and without it qwen3
+  # never produces actual content (thinking burns the whole budget).
+  # See evals/promptfoo/lm-studio-provider.js for details.
+  # NOTE: must be .cjs not .js — our package.json has "type": "module",
+  # so plain `.js` files are ESM and Promptfoo's require()-based loader
+  # would silently fail to load them.
+  - id: file://evals/promptfoo/lm-studio-provider.cjs
+    label: 'qwen 3.5 9B (dense)'
+    config:
+      model: 'qwen/qwen3.5-9b'
+      max_tokens: 16000
+      temperature: 0
+
+  # ---- Other local models (uncomment when you want a side-by-side run) ----
+  # First, unload qwen in LM Studio (or have enough VRAM headroom). Then:
+  # - id: file://evals/promptfoo/lm-studio-provider.cjs
+  #   label: 'gpt-oss 20B (MoE, 3.6B active)'
+  #   config:
+  #     model: 'openai/gpt-oss-20b'
+  #     max_tokens: 1024
+  #     temperature: 0
+
+  # ---- Claude (commented out — uncomment when you want frontier compare) --
+  # - id: anthropic:messages:claude-haiku-4-5-20251001
+  #   label: 'Claude Haiku 4.5'
+  #   config:
+  #     temperature: 0
+  #     max_tokens: 1024
+  # - id: anthropic:messages:claude-sonnet-4-6
+  #   label: 'Claude Sonnet 4.6'
+  #   config:
+  #     temperature: 0
+  #     max_tokens: 1024
+
+prompts:
+  - file://evals/promptfoo/prompt.json
+
+tests: file://evals/promptfoo/tests.json
+
+defaultTest:
+  assert:
+    # ============================================================
+    # 1. FAITHFULNESS — does every claim trace to the source chunks?
+    # IMPORTANT: Promptfoo's llm-rubric does NOT pass the user prompt to
+    # the judge by default — the judge sees only the model's OUTPUT and
+    # this rubric value. We MUST inline the source passages here, or the
+    # judge has nothing to verify claims against.
+    # Mirrors evals/judge-prompts.ts FAITHFULNESS_SYSTEM rubric.
+    # ============================================================
+    - type: llm-rubric
+      value: |
+        Evaluate the assistant's response on a 1-5 scale for FAITHFULNESS to the source passages below.
+
+        Source passages (the same numbered [1], [2], ... ones the assistant cited):
+        ---
+        {{sources_block}}
+        ---
+
+        Every factual claim in the assistant's response must be directly supported by at least one source passage above. The response must not:
+        - introduce facts not present in the sources,
+        - contradict the sources,
+        - extrapolate beyond what they say (e.g. add dates, motivations, causal claims not stated).
+
+        Refusals ("I don't have a source that...", "the sources do not contain...") are inherently faithful — they make no claims that need support. Score them 5.
+
+        Scoring:
+        - 5: All claims trace to one or more source passages.
+        - 4: Almost all claims trace back; one or two minor unsupported details.
+        - 3: About half the claims have source support; rest are extrapolated.
+        - 2: Most claims unsupported or contradict sources.
+        - 1: Mostly hallucinated or contradicts sources.
+
+        Pass threshold: score >= 3.
+      provider:
+        id: anthropic:messages:claude-haiku-4-5-20251001
+        config:
+          temperature: 0
+
+    # ============================================================
+    # 2. COMPLETENESS — how much of the ideal answer is covered?
+    # Mirrors evals/judge-prompts.ts COMPLETENESS_SYSTEM rubric.
+    # Uses {{ideal_answer}} from the test case vars as the reference.
+    # ============================================================
+    - type: llm-rubric
+      value: |
+        Evaluate the assistant's response on a 1-5 scale for COMPLETENESS against the ideal answer.
+
+        Ideal answer:
+        ---
+        {{ideal_answer}}
+        ---
+
+        Completeness = how much of the ideal answer's substantive factual content is covered by the assistant's response. Stylistic differences (length, tone, ordering) do not matter — only whether the candidate communicates the same key facts.
+
+        Scoring:
+        - 5: Covers essentially every substantive fact in the ideal answer.
+        - 4: Covers the majority of facts; minor gaps acceptable.
+        - 3: Covers some key facts but misses others of equal importance.
+        - 2: Covers only a small fraction of the ideal answer's content.
+        - 1: Misses everything (answers a different question, or omits all key facts).
+
+        Special case: if the ideal answer describes a REFUSAL as correct behavior:
+          - If candidate is a refusal: score 5.
+          - If candidate is a substantive answer: score 1.
+
+        Pass threshold: score >= 3.
+      provider:
+        id: anthropic:messages:claude-haiku-4-5-20251001
+        config:
+          temperature: 0
+
+    # ============================================================
+    # 3. REFUSAL CORRECTNESS — did the assistant refuse / answer as
+    # expected? Uses {{expected_behavior}} from vars ('refuse' or 'answer').
+    # Mirrors evals/judge-prompts.ts REFUSAL_SYSTEM + classifyRefusal logic.
+    # ============================================================
+    - type: llm-rubric
+      value: |
+        The expected behavior for this question is to **{{expected_behavior}}**.
+
+        - "refuse" = the question is out-of-scope, or the corpus doesn't support an answer. The assistant should decline with language like "I don't have a source that..." or "the sources don't contain information about...".
+        - "answer" = the question is in-scope. The assistant should attempt a substantive answer (even a partial one with caveats counts as "answer").
+
+        A partial answer that gives some information AND notes limits at the end counts as "answer", NOT as a refusal.
+
+        Set pass=true if the assistant's behavior matches the expected behavior ({{expected_behavior}}).
+        Set pass=false if the assistant did the opposite.
+
+        In your reason field, state which behavior the assistant actually did.
+      provider:
+        id: anthropic:messages:claude-haiku-4-5-20251001
+        config:
+          temperature: 0
+
+# Output to a stable file in evals/results/ so we can diff runs over time.
+outputPath: evals/results/promptfoo-latest.json

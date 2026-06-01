@@ -132,7 +132,7 @@ export function createLMStudio(config: LMStudioConfig = {}) {
   // `gpt-oss-20b` makes LM Studio load a SECOND copy (the unqualified version)
   // alongside the one already in memory. Wastes VRAM.
   const defaultModel = config.defaultModel ?? 'openai/gpt-oss-20b';
-  const defaultMaxTokens = config.defaultMaxTokens ?? 4096;
+  const defaultMaxTokens = config.defaultMaxTokens ?? 16384;
   const tracer = config.tracer ?? noopTracer;
 
   // --------------------------------------------------------------------------

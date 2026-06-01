@@ -1,0 +1,409 @@
+[
+  {
+    "id": "q-001-rubicon-aftermath",
+    "category": "literal",
+    "question": "What did Caesar do immediately after crossing the Rubicon?",
+    "idealAnswer": "After crossing the Rubicon, Caesar advanced rapidly to Ariminum and took the town, beginning the civil war against Pompey. He had only about 300 horsemen and 5,000 legionaries with him at the crossing.",
+    "goldChunkIds": [739, 740, 866, 867],
+    "notes": "Literal lookup — both Plutarch §XXXII/§XXXIII and Suetonius §XXXII/§XXXIII describe the crossing and immediate aftermath."
+  },
+  {
+    "id": "q-002-lifelong-rule",
+    "category": "synonym",
+    "question": "How did Caesar establish lifelong personal rule over Rome?",
+    "idealAnswer": "Caesar was appointed dictator perpetuo (dictator for life) and was granted excessive honours that effectively gave him monarchical power. Suetonius reports he 'abused his power' through such honours.",
+    "goldChunkIds": [910, 813],
+    "notes": "Synonym mismatch — question uses 'lifelong personal rule'; corpus uses 'dictator perpetuo', 'Dictator for Life', 'abused his power'. Tests vocabulary bridging."
+  },
+  {
+    "id": "q-003-gallic-war-vercingetorix",
+    "category": "multi-hop",
+    "question": "How long did Caesar's Gallic War last, and what role did Vercingetorix play in it?",
+    "idealAnswer": "Caesar fought in Gaul for nine years. Vercingetorix was the Arvernian leader who united the Gallic tribes against Rome and ultimately surrendered at Alesia, ending Gallic resistance.",
+    "goldChunkIds": [794, 258],
+    "notes": "Multi-hop — requires Plutarch §LXVIII ('In nine years Cæsar completed the subjugation') AND Caesar GW Book VII §IV (Vercingetorix introduction). Two facts, two different chunks."
+  },
+  {
+    "id": "q-004-assassination-account-comparison",
+    "category": "synthesis",
+    "question": "How do the accounts of Caesar's assassination by Plutarch and Suetonius differ?",
+    "idealAnswer": "Both describe the killing in the Senate by a group of conspirators including Brutus. Suetonius (§LXXX, §LXXXII) names specific conspirators (Cassius, Tullius Cimber) and the mechanics of the attack. Plutarch (§LXVI, §LXVII) describes the scene and the immediate aftermath when Brutus attempted to address the Senate. They report Caesar's last words slightly differently.",
+    "goldChunkIds": [772, 773, 914, 917],
+    "notes": "Synthesis — must surface chunks from BOTH Plutarch and Suetonius. Tests cross-source retrieval diversity."
+  },
+  {
+    "id": "q-005-tiktok-out-of-scope",
+    "category": "out-of-scope",
+    "question": "What did Caesar think of TikTok?",
+    "idealAnswer": "The system should refuse — the corpus contains no information about modern technology or social media. Correct response is a polite refusal naming the limitation.",
+    "goldChunkIds": [],
+    "notes": "Out-of-scope — empty gold chunks. Refusal correctness is measured in Turn 3 (generation metrics). Skipped from recall/MRR aggregates."
+  },
+
+  {
+    "id": "q-006-pirate-capture",
+    "category": "literal",
+    "question": "What happened when pirates captured the young Caesar?",
+    "idealAnswer": "On a voyage near the island of Pharmacusa, Caesar was captured by pirates and held for about 38–40 days. When they demanded 20 talents for his ransom he laughed and insisted on paying 50; he was treated almost as a prince among them. After being released and the 50 talents paid, he raised ships, hunted the pirates down, and crucified them as he had repeatedly promised he would.",
+    "goldChunkIds": [708, 709, 835],
+    "notes": "Literal — the episode is told plainly in Plutarch §I–II and Suetonius §IV. Distinct from q-019 (which targets the contradiction over HOW he executed them)."
+  },
+  {
+    "id": "q-007-veni-vidi-vici",
+    "category": "literal",
+    "question": "What famous three-word message did Caesar send after defeating Pharnaces, and where was the battle?",
+    "idealAnswer": "After swiftly defeating Pharnaces (son of Mithridates) at the battle of Zela in Pontus, Caesar reported the victory with the phrase 'Veni, vidi, vici' — 'I came, I saw, I conquered' — noting the brevity that matched the speed of the campaign. Suetonius records the same words were displayed on a tablet in his Pontic triumph.",
+    "goldChunkIds": [757, 871],
+    "notes": "Literal — Plutarch §L and Suetonius §XXXVII both record the phrase. Plutarch supplies the battle of Zela / Pharnaces context."
+  },
+  {
+    "id": "q-008-calendar-reform",
+    "category": "literal",
+    "question": "Why and how did Caesar reform the Roman calendar?",
+    "idealAnswer": "Caesar corrected the calendar, which had become badly confused because the pontiffs had abused their power over intercalation (inserting months). He reorganised it to align with the solar year — the basis of the Julian calendar.",
+    "goldChunkIds": [874],
+    "notes": "Literal, single-source — Suetonius §XL is the clear account ('he corrected the calendar... confused through the unwarrantable liberty which the pontiffs had taken'). Single gold chunk; tests precise retrieval of a narrow fact."
+  },
+  {
+    "id": "q-009-helvetii-migration",
+    "category": "literal",
+    "question": "Why did the Helvetii try to leave their territory, and how did Caesar first respond?",
+    "idealAnswer": "Led originally by Orgetorix, who was incited by a lust for sovereignty, the Helvetii resolved to march out of their lands en masse. When Caesar learned they intended to pass through the Province, he hurried to Geneva and ordered the bridge there broken down to block their route.",
+    "goldChunkIds": [2, 5, 7],
+    "notes": "Literal — the opening of the Gallic War (Book I §II, §V, §VII). All gold chunks are from Caesar's own narrative; tests retrieval within a single dense source."
+  },
+  {
+    "id": "q-010-britain-invasion-reason",
+    "category": "literal",
+    "question": "Why did Caesar decide to invade Britain?",
+    "idealAnswer": "Caesar resolved to cross into Britain because he had found that in almost all his wars with the Gauls the enemy had received reinforcements and support from there.",
+    "goldChunkIds": [137],
+    "notes": "Literal, single-source — Caesar GW Book IV §XX states the rationale directly. Tests a focused single-chunk retrieval."
+  },
+  {
+    "id": "q-011-caesar-appearance",
+    "category": "literal",
+    "question": "What does Suetonius say about Caesar's physical appearance and health?",
+    "idealAnswer": "Suetonius reports Caesar was fastidious about his grooming, keeping his hair closely cut and his body carefully tended; his baldness embarrassed him and exposed him to his enemies' jibes, so he took to combing his thin hair forward. He was also twice seized with the 'falling sickness' (epilepsy) while on campaign.",
+    "goldChunkIds": [879],
+    "notes": "Literal — Suetonius §XLV. Single chunk covers grooming, baldness, and the falling sickness; tests retrieval of a descriptive passage."
+  },
+  {
+    "id": "q-012-cleopatra-relationship",
+    "category": "literal",
+    "question": "What was Caesar's relationship with Cleopatra?",
+    "idealAnswer": "Caesar settled the Egyptian succession dispute in favour of Cleopatra (and her younger brother), and she became his great favourite. Suetonius reports he often revelled with her until dawn and would have travelled through Egypt with her in her royal barge had his army not objected.",
+    "goldChunkIds": [887, 869],
+    "notes": "Literal — Suetonius §LII (the affair) and §XXXV (settling Egypt on Cleopatra). Both are explicit, same-source chunks."
+  },
+  {
+    "id": "q-013-pompey-death-egypt",
+    "category": "literal",
+    "question": "How did Pompey die after he fled to Egypt?",
+    "idealAnswer": "Having fled to Egypt after Pharsalus, Pompey was murdered as he came ashore — stabbed by Achillas and Septimius, who had been sent by the boy-king Ptolemy's regent. The eunuch Pothinus, Ptolemy's tutor, was regent of the kingdom and behind the plot.",
+    "goldChunkIds": [629, 633],
+    "notes": "Literal — Caesar's own Civil War §CIV (the murder) and §CVIII (Pothinus as regent). Same-source, factual."
+  },
+
+  {
+    "id": "q-014-epilepsy",
+    "category": "synonym",
+    "question": "Did Caesar suffer from epilepsy or seizures?",
+    "idealAnswer": "Yes. Suetonius says he was twice seized with the 'falling sickness' while on active service, and Plutarch reports he was subject to 'epileptic fits', which are said to have first attacked him at Corduba.",
+    "goldChunkIds": [879, 724],
+    "notes": "Synonym — the question's 'epilepsy/seizures' must bridge to the corpus terms 'falling sickness' (Suetonius §XLV) and 'epileptic fits' (Plutarch §XVII). Bonus cross-source."
+  },
+  {
+    "id": "q-015-debts",
+    "category": "synonym",
+    "question": "Was Caesar in serious financial difficulty early in his career?",
+    "idealAnswer": "Yes. Before holding any major office Caesar was said to be in debt to the amount of 1,300 talents, and Crassus had to stand security for him for 830 talents before he could leave for his province. His lavish public spending (e.g. on the Appian Road and games) deepened his debts.",
+    "goldChunkIds": [712, 718],
+    "notes": "Synonym — 'financial difficulty/debt' maps to corpus phrasing 'in debt', 'borrow', 'security... talents' (Plutarch §V, §XI). Tests numeric/financial vocabulary bridging."
+  },
+  {
+    "id": "q-016-oratory-skill",
+    "category": "synonym",
+    "question": "How skilled was Caesar as a public speaker?",
+    "idealAnswer": "Caesar was reckoned among the foremost orators of his age. Suetonius reports that Cicero ranked him as inferior to none of the famous speakers, praising his elegant, splendid and noble style; Plutarch notes he won great popularity at Rome by aiding defendants at trials with his eloquence.",
+    "goldChunkIds": [890, 711],
+    "notes": "Synonym — 'public speaker / speaking skill' must bridge to 'eloquence', 'orator', 'advocate' (Suetonius §LV, Plutarch §IV). Tests vocabulary mismatch on an abstract attribute."
+  },
+  {
+    "id": "q-017-affairs-women",
+    "category": "synonym",
+    "question": "Was Caesar known as a womanizer?",
+    "idealAnswer": "Yes — Caesar had a notorious reputation for affairs with married women. His soldiers joked about him as a 'bald-pate master of the wenching trade' and warned citizens to watch their wives, and his greatest favourite was Cleopatra, with whom he revelled until dawn.",
+    "goldChunkIds": [886, 887],
+    "notes": "Synonym — 'womanizer' must bridge to the corpus's period vocabulary: 'wenching', 'intrigues with married women', 'favourite was Cleopatra' (Suetonius §L, §LII)."
+  },
+  {
+    "id": "q-018-soldier-rewards",
+    "category": "synonym",
+    "question": "How did Caesar reward and motivate his troops?",
+    "idealAnswer": "Caesar was famous for his liberality and lavish donations to his soldiers, which bound them closely to him; he also commanded large standing armies funded from the public treasury (a thousand talents a year). Plutarch counts his generosity to his soldiers among the things that made him superior to other commanders.",
+    "goldChunkIds": [722, 735],
+    "notes": "Synonym — 'reward/motivate/bonuses' must bridge to 'donations and liberality to his soldiers', 'a thousand talents every year' (Plutarch §XV, §XXVIII)."
+  },
+  {
+    "id": "q-019-pirate-execution",
+    "category": "contradiction",
+    "question": "How did Caesar execute the pirates who had captured him?",
+    "idealAnswer": "The sources disagree on the manner. Plutarch (§II) says Caesar simply took the pirates out of prison and crucified them, as he had jokingly promised. Suetonius (§LXXIV) agrees he crucified them as he had sworn, but adds that out of his natural leniency he first ordered their throats to be cut so they would not suffer the full agony of crucifixion.",
+    "goldChunkIds": [709, 908],
+    "notes": "Contradiction — same event, conflicting detail. Plutarch: straightforward crucifixion. Suetonius: crucifixion preceded by a merciful throat-cutting. Failure mode is retrieving only one source's version."
+  },
+  {
+    "id": "q-020-alexander-lament",
+    "category": "contradiction",
+    "question": "What made Caesar lament that he had achieved nothing compared to Alexander the Great, and how did he react?",
+    "idealAnswer": "Both biographers report the episode in Spain but differ on the trigger and reaction. Plutarch (§XI) says Caesar was reading a history of Alexander, fell into deep thought, and burst into tears, lamenting that Alexander had conquered the world at his age while he had done nothing memorable. Suetonius (§VII) says it was the sight of a statue of Alexander in the temple of Hercules at Gades that made him sigh deeply, as if weary of his own sluggish life.",
+    "goldChunkIds": [718, 838],
+    "notes": "Contradiction — the same anecdote with conflicting specifics: reading a book + weeping (Plutarch) vs seeing a statue + sighing (Suetonius). Tests whether retrieval surfaces both variants."
+  },
+  {
+    "id": "q-021-rubicon-quote-language",
+    "category": "contradiction",
+    "question": "What did Caesar say as he crossed the Rubicon, and in what language?",
+    "idealAnswer": "Both sources record a phrase about casting the die, but frame it differently. Suetonius (§XXXII) gives it as a Latin declaration: 'The die is now cast.' Plutarch (§XXXII) presents it as a Greek expression that men use before desperate undertakings — 'Let the die be cast' — which he says Caesar uttered before hurrying across. The accounts differ on the exact wording and the language Caesar used.",
+    "goldChunkIds": [739, 866],
+    "notes": "Contradiction — the famous line's wording and language differ between Plutarch (Greek proverb) and Suetonius (Latin). Tests cross-source retrieval of conflicting versions of one quotation."
+  },
+  {
+    "id": "q-022-senate-snub",
+    "category": "contradiction",
+    "question": "Did Caesar fail to rise to greet the Senate, and was it arrogance?",
+    "idealAnswer": "The sources read the same act differently. Suetonius (§LXXVIII) presents Caesar's failure to rise when the whole Senate approached with honours as flagrant arrogance that gave grave offence (he also rebuked the tribune Pontius Aquila for not rising to him). Plutarch (§LX) is more forgiving: he reports Caesar received them without rising as if dealing with private persons, but adds it was said Caesar actually wished to rise and was checked by his flatterer Cornelius Balbus.",
+    "goldChunkIds": [912, 767],
+    "notes": "Contradiction — interpretive disagreement over the same incident: deliberate arrogance (Suetonius) vs an excused/checked impulse (Plutarch). Tests retrieval of both readings."
+  },
+  {
+    "id": "q-023-crown-refusal",
+    "category": "contradiction",
+    "question": "Did Caesar genuinely refuse the crown, or did he want to be king?",
+    "idealAnswer": "The sources differ in emphasis. Suetonius (§LXXIX) records that Caesar repeatedly put away the crown Antony placed on his head at the Lupercalia and declared 'I am Caesar, and no king' — but frames these refusals within a pattern of monarchical ambition. Plutarch (§LXI) describes the same Lupercalia scene as a staged trial of public feeling, with the applause deliberately concerted, casting doubt on the sincerity of the refusal.",
+    "goldChunkIds": [913, 768],
+    "notes": "Contradiction — both report the refusal but disagree on whether it was sincere. Suetonius: refusal amid evidence of kingly aspiration. Plutarch: an orchestrated test. Tests surfacing both framings."
+  },
+  {
+    "id": "q-024-clemency-vs-brutality",
+    "category": "contradiction",
+    "question": "Was Caesar merciful or brutal toward those he defeated?",
+    "idealAnswer": "The corpus pulls in opposite directions. His biographers stress his famous clemency: Plutarch (§LVII) notes the Romans voted a temple to Clemency for his moderation in pardoning enemies, and Suetonius (§LXXV) praises his wonderful moderation toward the defeated. Yet Caesar's own Gallic War records harsh brutality — at Uxellodunum (Book VIII §XLIV) he cut off the hands of all who had borne arms against him, and at Avaricum (Book VII §XXVIII) his troops spared neither the aged, women, nor children, leaving scarcely 800 alive out of some 40,000.",
+    "goldChunkIds": [764, 909, 384, 282],
+    "notes": "Contradiction — the headline tension: reputation for 'clementia' (Plutarch, Suetonius) vs documented atrocities in Caesar's own account. Gold spans three sources; failure mode is retrieving only the flattering clemency chunks."
+  },
+  {
+    "id": "q-025-last-words",
+    "category": "contradiction",
+    "question": "What were Caesar's last words when he was assassinated?",
+    "idealAnswer": "The sources disagree, and neither gives the popular 'Et tu, Brute'. Suetonius (§LXXXII) says Caesar uttered only a groan at the first wound and no words at all, though he notes some authors report that when Brutus struck he said in Greek, 'You too, my child?' Plutarch (§LXVI) records no final words to Brutus — he says that when Caesar saw Brutus had drawn his sword he pulled his toga over his face and offered no further resistance.",
+    "goldChunkIds": [917, 772],
+    "notes": "Contradiction — silence/disputed Greek phrase (Suetonius) vs silent toga-over-face (Plutarch). The famous Latin line appears in neither. Classic cross-source disagreement."
+  },
+  {
+    "id": "q-026-nicomedes-rumor",
+    "category": "contradiction",
+    "question": "Was there a scandal about Caesar and King Nicomedes of Bithynia?",
+    "idealAnswer": "The sources cover it very unevenly. Suetonius dwells on it: he says Caesar loitered so long at Nicomedes' court (§II) that it gave rise to reports of a criminal intercourse, and calls it (§XLIX) the one stain on his chastity that followed him all his life and exposed him to bitter raillery. Plutarch's narrative essentially omits the affair; a translator's note even remarks that Suetonius, 'a lover of scandal', preserved the grievous imputation that Plutarch passes over.",
+    "goldChunkIds": [833, 883, 776],
+    "notes": "Contradiction (coverage divergence) — the failure mode the category targets in its purest form: one source treats the rumour as a defining scandal, the other is silent. Tests whether retrieval surfaces a one-sided story rather than reporting false consensus."
+  },
+
+  {
+    "id": "q-027-pompey-alliance-breakdown",
+    "category": "multi-hop",
+    "question": "How did the alliance between Caesar and Pompey form and then break down?",
+    "idealAnswer": "Caesar cemented his alliance with Pompey by giving him his daughter Julia in marriage (breaking her earlier betrothal). When Julia died a few years later, the personal bond between the two men was lost, and the alliance unravelled: Pompey, urged on by the Senate, insisted on stripping Caesar of his soldiers, and despite Cicero's attempts at reconciliation the two drifted into civil war.",
+    "goldChunkIds": [721, 730, 738],
+    "notes": "Multi-hop — requires chaining Julia's marriage to Pompey (Plutarch §XIV), her death (§XXIII), and the collapse of reconciliation (§XXXI). No single chunk tells the arc."
+  },
+  {
+    "id": "q-028-marius-kinship",
+    "category": "multi-hop",
+    "question": "What family tie connected Caesar to Marius, and how did Caesar publicly honour that connection?",
+    "idealAnswer": "Marius had married Julia, the sister of Caesar's father, making Marius Caesar's uncle by marriage (and the younger Marius his cousin). Caesar leaned on this kinship politically: he delivered a public funeral oration for his aunt Julia, Marius's widow, and provocatively displayed images of Marius — banned since Sulla — which moved the people to tears of joy and marked him as the heir of the Marian party.",
+    "goldChunkIds": [708, 712, 713],
+    "notes": "Multi-hop — the kinship fact (Plutarch §I) plus the two public acts that traded on it (§V the oration, §VI the images of Marius). Connecting the relationship to its political use needs all three."
+  },
+  {
+    "id": "q-029-sulla-to-pontifex",
+    "category": "multi-hop",
+    "question": "How did Caesar go from being persecuted under Sulla to becoming Pontifex Maximus?",
+    "idealAnswer": "When Sulla held supreme power he demanded Caesar divorce his wife Cornelia (daughter of Cinna); Caesar refused, and as punishment was stripped of his priesthood and had Cornelia's dowry confiscated, and had to go into hiding. After Sulla's power declined and Caesar returned to Rome, he later won election as Pontifex Maximus — the high priesthood — telling his mother as he left for the vote that he would return either as Pontifex or as an exile.",
+    "goldChunkIds": [832, 708, 714],
+    "notes": "Multi-hop — Sulla stripping his priesthood for refusing to divorce Cornelia (Suetonius §I, Plutarch §I) must connect to the later Pontifex Maximus election (Plutarch §VII). Reversal-of-fortune arc across two sources."
+  },
+  {
+    "id": "q-030-alesia-siege",
+    "category": "multi-hop",
+    "question": "How did Caesar defeat Vercingetorix at the siege of Alesia?",
+    "idealAnswer": "Caesar trapped Vercingetorix's forces in the hill-town of Alesia and surrounded it with massive siege works — a deep trench and lines of circumvallation. When a huge Gallic relief army arrived and Vercingetorix sallied out from the town to coordinate with it, Caesar's double lines of fortification held against attacks from both sides, the relief force was beaten off, and the blockaded Gauls were forced to give up — ending the great Gallic revolt.",
+    "goldChunkIds": [322, 326, 338],
+    "notes": "Multi-hop — within Caesar GW Book VII: the move to Alesia (§LXVIII), the fortification system (§LXXII), and Vercingetorix's sally during the relief assault (§LXXXIV). Requires assembling the siege narrative from several chunks."
+  },
+  {
+    "id": "q-031-egypt-involvement",
+    "category": "multi-hop",
+    "question": "How did Caesar end up intervening in the Egyptian war between Ptolemy and Cleopatra?",
+    "idealAnswer": "Caesar came to Egypt while pursuing Pompey after Pharsalus. He arrived to find the boy-king Ptolemy at war with his sister Cleopatra, whom he had expelled from the kingdom. Caesar — finding Pompey already murdered there — used his position to summon both Ptolemy and Cleopatra, ordering them to disband their armies and submit their dispute to his judgement rather than the sword.",
+    "goldChunkIds": [628, 629, 632],
+    "notes": "Multi-hop — links the pursuit of Pompey to Egypt (CW §CIV), the Ptolemy–Cleopatra civil war (§CIII), and Caesar's intervention (§CVI). All within Caesar's own Civil War but spread across chunks."
+  },
+  {
+    "id": "q-032-lupercalia-to-conspiracy",
+    "category": "multi-hop",
+    "question": "How did fears that Caesar wanted to be king lead the conspirators to act when they did?",
+    "idealAnswer": "Signs of Caesar's monarchical ambition mounted — the Lupercalia crown offered by Antony, and a rumoured proposal that he be proclaimed king of the provinces outside Italy and wear a diadem abroad. It was precisely to avoid having to assent to such a kingship proposal in the Senate that the conspirators precipitated their plot, uniting their previously separate cabals to strike before the measure could be voted.",
+    "goldChunkIds": [913, 770, 914],
+    "notes": "Multi-hop — connects the crown/diadem signals (Suetonius §LXXIX, Plutarch §LXIV) to the conspirators' decision to act fast (Suetonius §LXXX). The causal link is the payload."
+  },
+  {
+    "id": "q-033-omens-and-response",
+    "category": "multi-hop",
+    "question": "What warnings preceded Caesar's assassination, and how did he respond to them?",
+    "idealAnswer": "Several warnings were reported: the soothsayer Spurinna saw ominous signs in a sacrifice and warned Caesar to beware of danger (later focused on the Ides of March), and the horses he had consecrated at the Rubicon were said to refuse food and weep. Caesar's wife Calpurnia, after a frightening dream, begged him not to go out and to postpone the Senate. Despite these, Caesar went to the Senate on the Ides — where he was killed.",
+    "goldChunkIds": [916, 769],
+    "notes": "Multi-hop — Suetonius §LXXXI (Spurinna, weeping horses) and Plutarch §LXIII (Calpurnia's dream, the seer's warning) must combine, and the answer must add his decision to go anyway."
+  },
+  {
+    "id": "q-034-debt-to-power",
+    "category": "multi-hop",
+    "question": "How did Caesar move from crushing personal debt to controlling enormous wealth?",
+    "idealAnswer": "Early on Caesar was deep in debt — reportedly 1,300 talents before holding office — spending lavishly to win popularity. His command in Gaul reversed this: it gave him standing armies funded by a thousand talents a year from the treasury, plus the spoils of conquest, turning him from a debtor into one of the wealthiest and most powerful men in Rome.",
+    "goldChunkIds": [712, 735],
+    "notes": "Multi-hop — early debt (Plutarch §V) connected to the wealth and military funding the Gallic command brought (§XXVIII). Tests linking a 'before' and 'after' fact."
+  },
+
+  {
+    "id": "q-035-military-genius",
+    "category": "synthesis",
+    "question": "How do the sources assess Caesar as a military commander?",
+    "idealAnswer": "The sources rate Caesar among history's greatest generals. Plutarch (§XV) argues he surpassed all other Roman commanders — Fabius, Scipio, Sulla, Marius, even Pompey — in the difficulty of his campaigns, the extent of his conquests, the numbers he defeated, and his leadership of men. Both Plutarch and Suetonius (§XXV) record the scale of the achievement: in roughly nine years he subdued the whole of Gaul, bounded by the Pyrenees, Alps, Cevennes, Rhine and Rhone.",
+    "goldChunkIds": [722, 857, 794],
+    "notes": "Synthesis — must combine Plutarch's comparative judgement (§XV), the scope-of-conquest summaries (Suetonius §XXV; Plutarch §LXVIII), and weigh them into an assessment. Cross-source reasoning, not a single lookup."
+  },
+  {
+    "id": "q-036-monarchical-honors",
+    "category": "synthesis",
+    "question": "What honours and powers made Caesar seem like a monarch rather than a republican magistrate?",
+    "idealAnswer": "Caesar accumulated honours that effectively made him a king in all but name: the dictatorship for life with the substance of power rather than mere titles (Suetonius §LXXVI), and a string of extravagant distinctions he accepted with such arrogance that he insulted the Senate (e.g. dismissing an unfavourable omen, §LXXVII). Plutarch (§LXIV) reports a proposal that he be styled king of the provinces outside Italy and wear a diadem abroad. Together these blurred the line between magistrate and monarch.",
+    "goldChunkIds": [910, 911, 770],
+    "notes": "Synthesis — aggregates several distinct honours/powers (Suetonius §LXXVI, §LXXVII; Plutarch §LXIV) into a characterisation. Tests reasoning across multiple chunks toward a judgement."
+  },
+  {
+    "id": "q-037-assassination-aftermath",
+    "category": "synthesis",
+    "question": "What happened in Rome in the immediate aftermath of Caesar's assassination?",
+    "idealAnswer": "Confusion and a tense calm followed. Plutarch (§LXVII) describes senators fleeing the scene, panic in the city, the conspirators marching to the Capitol proclaiming liberty, and Brutus addressing a silent, sympathetic crowd the next day; the Senate then passed an amnesty, deified Caesar, and confirmed his acts. Caesar's will (Suetonius §LXXXIII) named his great-nephew Gaius Octavius as principal heir to three-fourths of his estate — the future Augustus.",
+    "goldChunkIds": [773, 918],
+    "notes": "Synthesis — combines the political aftermath (Plutarch §LXVII) with the contents of the will (Suetonius §LXXXIII) into a coherent account. Cross-source."
+  },
+  {
+    "id": "q-038-wealth-and-spectacle",
+    "category": "synthesis",
+    "question": "How did Caesar use money and public spectacle to build political support?",
+    "idealAnswer": "Caesar systematically bought popularity. As curator of the Appian Road and as aedile he spent huge sums of his own money on public works and games; he staged lavish gladiatorial shows and mock naval battles (in part as belated honours for his daughter Julia); and he distributed enormous sums to politicians and the people, even funding a new Basilica in the Forum after giving the consul Paulus 1,500 talents. This spending, though it left him in debt, won him the popular favour that underpinned his rise.",
+    "goldChunkIds": [712, 762, 736],
+    "notes": "Synthesis — draws together separate examples of spending-for-favour (Plutarch §V, §LV, §XXIX) into a thematic answer. Tests aggregating instances into a pattern."
+  },
+  {
+    "id": "q-039-people-vs-senate",
+    "category": "synthesis",
+    "question": "What was Caesar's relationship with the common people compared with the Senate?",
+    "idealAnswer": "Caesar consistently positioned himself as champion of the people against a hostile Senate. He courted popular favour by reviving the memory of Marius (displaying his images to the people's joy), and pursued popular measures such as reinstating exiles and relieving debtors. He framed his confrontations as forced on him by the Senate's arrogance and obstinacy — by his own account he was 'driven against his will' to appeal to the popular assembly.",
+    "goldChunkIds": [713, 721, 744],
+    "notes": "Synthesis — contrasts popular support (Plutarch §VI, §XXXVII) with Senate friction (§XIV) to characterise a relationship. Requires reasoning across chunks rather than quoting one."
+  },
+  {
+    "id": "q-040-character-flaws",
+    "category": "synthesis",
+    "question": "What faults or vices do the ancient sources attribute to Caesar?",
+    "idealAnswer": "Alongside their admiration, the sources note real faults: overweening ambition (he wept that he had achieved nothing next to Alexander), arrogance toward the Senate and the gods (mocking an unfavourable omen, Suetonius §LXXVII), sexual licence and extravagance (his dalliance with Cleopatra and reputation for affairs), and the lingering scandal of his youthful association with King Nicomedes, which Suetonius calls the one stain on his chastity.",
+    "goldChunkIds": [911, 718, 887, 883],
+    "notes": "Synthesis — gathers distinct criticisms across both biographers (Suetonius §LXXVII, §LII, §XLIX; Plutarch §XI) into a balanced character assessment. Multi-chunk, multi-source."
+  },
+  {
+    "id": "q-041-why-conspiracy",
+    "category": "synthesis",
+    "question": "Why did the conspirators decide that Caesar had to be killed?",
+    "idealAnswer": "The conspirators acted out of fear that Caesar was making himself a monarch and destroying the Republic. The honours heaped on him, the dictatorship for life, and proposals that he be made king of the provinces and wear a diadem convinced them he aimed at kingship; his arrogance toward the Senate sharpened the resentment. They precipitated the plot specifically to forestall a Senate vote that would have granted him a royal title.",
+    "goldChunkIds": [914, 770, 911],
+    "notes": "Synthesis — reasons across the monarchy proposals (Plutarch §LXIV), Caesar's arrogance (Suetonius §LXXVII), and the trigger to act (Suetonius §LXXX) to explain motivation. Distinct from q-037 (aftermath) and the contradiction items."
+  },
+
+  {
+    "id": "q-042-inheritance",
+    "category": "synonym",
+    "question": "Who did Caesar designate to inherit his fortune?",
+    "idealAnswer": "In his will Caesar named three heirs, all grandsons of his sisters: Gaius Octavius (the future Augustus) for three-fourths of his estate, with Lucius Pinarius and Quintus Pedius sharing the remaining fourth. Octavius was his principal heir.",
+    "goldChunkIds": [918, 824],
+    "notes": "Synonym — 'inherit his fortune' must bridge to the corpus's 'heirs / heres / estate / three fourths' (Suetonius §LXXXIII, Plutarch §LXVIII note). Tests legal/inheritance vocabulary mismatch."
+  },
+  {
+    "id": "q-043-civilian-killings",
+    "category": "synonym",
+    "question": "Did Caesar's army kill non-combatants during the Gallic War?",
+    "idealAnswer": "Yes. At Avaricum, when the town was stormed, Caesar's soldiers spared neither the aged, women, nor children — of some 40,000 inhabitants scarcely 800 who fled survived. Caesar's campaigns also involved burning many towns and laying waste whole territories.",
+    "goldChunkIds": [282, 269],
+    "notes": "Synonym — 'non-combatants' must bridge to the corpus's concrete 'women, or children', 'aged' and 'towns burnt' (Caesar GW Book VII §XXVIII, §XV). Abstract term → concrete enumeration."
+  },
+
+  {
+    "id": "q-044-pompey-head-reaction",
+    "category": "contradiction",
+    "question": "How did Caesar react to the death of Pompey?",
+    "idealAnswer": "The sources strike different notes. Plutarch (§XLVIII) portrays grief and revulsion: Caesar turned away in horror from Theodotus who brought him Pompey's severed head, but accepted Pompey's signet ring and shed tears over it. Caesar's own Civil War (§CIV) recounts Pompey's murder in flat, factual terms with no expression of personal grief, recording instead his subsequent actions in Egypt (including putting Pothinus to death).",
+    "goldChunkIds": [755, 629],
+    "notes": "Contradiction (tone/coverage) — Plutarch dramatises Caesar's grief; Caesar's self-account is silent on any emotion. Tests whether retrieval surfaces both the emotive biographical version and Caesar's own neutral narrative."
+  },
+
+  {
+    "id": "q-045-oos-gunpowder",
+    "category": "out-of-scope",
+    "question": "What gunpowder weapons did Caesar's legions use in Gaul?",
+    "idealAnswer": "The system should refuse: gunpowder did not exist in Caesar's era and the corpus describes only ancient siege works and hand weapons. Correct behaviour is to state that the corpus contains no such information rather than inventing an answer.",
+    "goldChunkIds": [],
+    "notes": "Out-of-scope (anachronism) — risk is hallucination by latching onto 'siege'/'weapons' chunks. Refusal correctness judged in Turn 3."
+  },
+  {
+    "id": "q-046-oos-fall-of-empire",
+    "category": "out-of-scope",
+    "question": "What were the main causes of the fall of the Western Roman Empire?",
+    "idealAnswer": "The system should refuse or state the limitation: the Western Empire fell roughly five centuries after Caesar, and this Caesar-focused corpus contains nothing about it. The right response declines rather than guessing.",
+    "goldChunkIds": [],
+    "notes": "Out-of-scope (real topic, outside corpus) — plausible-sounding and Rome-adjacent, so it tempts the model to answer from general knowledge instead of the corpus. Tests refusal discipline."
+  },
+  {
+    "id": "q-047-oos-caesar-salad",
+    "category": "out-of-scope",
+    "question": "Is the Caesar salad named after Julius Caesar, and what's the recipe?",
+    "idealAnswer": "The system should refuse: the corpus is a set of ancient histories of Julius Caesar and says nothing about salads or modern recipes. (The dish is in fact named after a 20th-century restaurateur, but that too is outside the corpus.) Correct behaviour is to decline.",
+    "goldChunkIds": [],
+    "notes": "Out-of-scope (name confusion) — tests that the retriever/LLM doesn't conflate the historical figure with an unrelated modern namesake."
+  },
+  {
+    "id": "q-048-oos-hannibal-cannae",
+    "category": "out-of-scope",
+    "question": "How did Hannibal defeat the Romans at the Battle of Cannae?",
+    "idealAnswer": "The system should refuse: Cannae was fought in the Second Punic War, over a century and a half before Caesar, and is not covered by this corpus. The corpus mentions Hannibal only in passing, with nothing about Cannae. The right response declines.",
+    "goldChunkIds": [],
+    "notes": "Out-of-scope (adjacent Roman history) — 'Hannibal' appears once in the corpus, so a naive retriever may return a near-miss chunk; the LLM should still refuse. Tests refusal despite a keyword hit."
+  },
+  {
+    "id": "q-049-oos-christianity",
+    "category": "out-of-scope",
+    "question": "What was Julius Caesar's opinion of Christianity?",
+    "idealAnswer": "The system should refuse: Christianity arose after Caesar's lifetime and the corpus contains nothing on the subject. Correct behaviour is to note the anachronism and decline rather than fabricate a view.",
+    "goldChunkIds": [],
+    "notes": "Out-of-scope (anachronism) — tests refusal on a religiously/historically loaded premise the corpus cannot support."
+  },
+  {
+    "id": "q-050-oos-augustus-successor",
+    "category": "out-of-scope",
+    "question": "Who succeeded Augustus as Roman emperor, and how long did he reign?",
+    "idealAnswer": "The system should refuse or flag the gap: the question concerns events after Augustus (i.e. Tiberius), well beyond this Caesar-focused corpus, which ends with Caesar's death and only names Octavius as heir. Correct behaviour is to decline rather than answer from outside knowledge.",
+    "goldChunkIds": [],
+    "notes": "Out-of-scope (just past the corpus boundary) — the corpus mentions Octavius/Augustus as Caesar's heir but nothing about his reign or successor, so it tempts an over-eager answer. Tests boundary discipline."
+  }
+]

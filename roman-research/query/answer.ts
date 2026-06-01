@@ -56,6 +56,10 @@ const CLAUDE_MODEL_BY_CHOICE: Record<Exclude<LLMChoice, 'lmstudio'>, ClaudeModel
 
 export interface AnswerOptions {
   llm?: LLMChoice;
+  /** Override the LM Studio model identifier (only used when llm='lmstudio').
+   *  Defaults to qwen3.5-9b (dense, strong at extracting from chunks).
+   *  Pass any string LM Studio recognizes (e.g. 'openai/gpt-oss-20b'). */
+  lmStudioModel?: string;
 }
 
 export interface AnswerResult {
@@ -103,14 +107,23 @@ export async function answerQuestion(
 
   if (llm === 'lmstudio') {
     // createLocalLLM is env-driven (LOCAL_LLM_PROVIDER). Defaults to LM Studio.
-    // Override model here so the user sees gpt-oss-20b by default — strong
-    // tool-using model with leveled reasoning, runs on the 5070 Ti.
+    // Default model: qwen3.5-9b — dense 9B is more consistent at extracting
+    // facts from multi-chunk context than gpt-oss-20b (which is MoE with
+    // only 3.6B active params and tends to skim). Caller can override via
+    // options.lmStudioModel to compare models.
     const local = createLocalLLM({
-      lmstudio: { defaultModel: LM_STUDIO_MODELS.gptOss20b },
+      lmstudio: { defaultModel: options.lmStudioModel ?? LM_STUDIO_MODELS.qwen3_5_9b },
     });
     const result = await local.client.chat({
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
+      // Disable thinking. qwen3 family defaults to on, which writes a long
+      // chain of thought into `message.reasoning` and often exhausts the
+      // max_tokens budget before producing any final `message.content`.
+      // For RAG-answer generation we want the direct answer, not the
+      // intermediate reasoning. (gpt-oss-20b uses leveled reasoning_effort
+      // and ignores this flag; passing false is a no-op there.)
+      reasoning: false,
     });
     return {
       text: result.text,

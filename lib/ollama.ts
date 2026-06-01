@@ -120,7 +120,7 @@ export function createOllama(config: LMStudioConfig = {}): OllamaClient {
   // here so the structured() override doesn't recompute it per call.
   const nativeBase = v1Base.replace(/\/v1$/, '');
   const defaultModel = config.defaultModel ?? OLLAMA_MODELS.gptOss20b;
-  const defaultMaxTokens = config.defaultMaxTokens ?? 4096;
+  const defaultMaxTokens = config.defaultMaxTokens ?? 16384;
   const tracer = config.tracer ?? noopTracer;
 
   const base = createLMStudio({

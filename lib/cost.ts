@@ -87,14 +87,18 @@ export const ANTHROPIC_PRICES: Record<string, ModelPricing> = {
  * translates appropriately.
  */
 export const LM_STUDIO_MODELS = {
-  /** OpenAI's open-source 20B; tool-trained; honors `reasoning_effort` levels. */
+  /** OpenAI's open-source 20B MoE (3.6B active); tool-trained; honors `reasoning_effort` levels. */
   gptOss20b: 'openai/gpt-oss-20b',
   /** Google Gemma 4 efficient-4B. Boolean reasoning. */
   gemma4_4b: 'google/gemma-4-e4b',
   /** Google Gemma 4 mid-tier (26B-a4b variant). Boolean reasoning. */
   gemma4_26b: 'google/gemma-4-26b-a4b',
-  /** Qwen 3.6 mid-tier (35B-a3b variant). Boolean reasoning. */
+  /** Qwen 3.6 mid-tier MoE (35B with 3B active). Boolean reasoning. */
   qwen3_35b: 'qwen/qwen3.6-35b-a3b',
+  /** Qwen 3.5 dense 9B — strong extraction / agent behavior at small scale.
+   *  Dense (vs MoE) → more consistent attention; preferred when chunks must
+   *  be exhaustively read rather than skimmed. Boolean reasoning. */
+  qwen3_5_9b: 'qwen/qwen3.5-9b',
 } as const;
 
 /** Union of known LM Studio model IDs. Not enforced as a type bound on
