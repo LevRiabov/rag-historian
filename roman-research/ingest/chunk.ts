@@ -49,6 +49,62 @@ export const DEFAULT_CHUNK_OPTIONS: ChunkOptions = {
   overlapTokens: 50,
 };
 
+export interface ChunkVariant {
+  /** The `chunking_version` label stored on every row this variant produces.
+   *  Variants coexist in the `chunks` table, discriminated by this string. */
+  version: string;
+  /** One-line rationale — surfaced in ingest logs + the Module 6 notes. */
+  description: string;
+  /** Build this variant's chunks from a source's parsed sections. Most
+   *  variants are `chunkSections()` with different options; parent-child uses
+   *  its own builder (small children + parent-section pointers). */
+  chunk: (sections: ParsedSection[]) => Chunk[];
+}
+
+/**
+ * Module 6.1 granularity sweep.
+ *
+ * The flat variants are just `chunkSections()` with different options — the
+ * splitter already does "one section → one chunk if it fits, else
+ * paragraph-pack to target":
+ *   - a SMALL target (window-300) yields finer chunks with tighter vectors;
+ *   - a LARGE target with 0 overlap (chapter) yields one-chunk-per-section,
+ *     splitting only when a section exceeds the embedder-safe ceiling. The
+ *     6000-token target sits under BGE-M3's 8192 context (BGE's XLM-RoBERTa
+ *     tokenizer runs ~10-20% hotter than the cl100k count we track, so 6000
+ *     cl100k ≈ ~7000 BGE tokens — headroom intact, no silent truncation).
+ *
+ * `parent-child-v1` is the interesting one: it stores naive-sized (500/50)
+ * CHILDREN — so retrieval recall is identical to naive-v1 by construction
+ * (same vectors, a clean A/B) — but each child carries a pointer to its full
+ * parent SECTION. At generation time the retrieved children expand to their
+ * parents (see retrieve.ts `expandToParents`), giving the LLM coherent
+ * section-level context without the recall-inflating granularity bias of
+ * embedding whole chapters. Isolates ONE variable vs naive: parent context.
+ */
+export const CHUNKING_VARIANTS: Record<string, ChunkVariant> = {
+  'naive-v1': {
+    version: 'naive-v1',
+    description: 'Module 4/5 baseline — 500-token windows, 50 overlap.',
+    chunk: (s) => chunkSections(s, { targetTokens: 500, overlapTokens: 50 }),
+  },
+  'window-300-v1': {
+    version: 'window-300-v1',
+    description: 'Finer windows — tighter topical vectors, ~more chunks.',
+    chunk: (s) => chunkSections(s, { targetTokens: 300, overlapTokens: 30 }),
+  },
+  'chapter-v1': {
+    version: 'chapter-v1',
+    description: 'Whole section as one chunk; split only past embedder ceiling.',
+    chunk: (s) => chunkSections(s, { targetTokens: 6000, overlapTokens: 0 }),
+  },
+  'parent-child-v1': {
+    version: 'parent-child-v1',
+    description: 'Naive-sized children (retrieve precise) + parent-section expansion at gen time.',
+    chunk: (s) => chunkSectionsParentChild(s, { targetTokens: 500, overlapTokens: 50 }),
+  },
+};
+
 export interface Chunk {
   /** 0-based, sequential within (source, chunking_version). */
   chunkIndex: number;
@@ -61,6 +117,15 @@ export interface Chunk {
   charEnd: number;
   /** Accurate cl100k_base token count for billing + sanity. */
   tokenCount: number;
+  /** Parent-document retrieval (parent-child-v1 only): the full parent
+   *  SECTION this child belongs to. Embedded + retrieved on the child text,
+   *  but expanded to `parent.text` before being handed to the generator.
+   *  Persisted into the chunk's metadata JSONB; absent for flat variants. */
+  parent?: {
+    text: string;
+    charStart: number;
+    charEnd: number;
+  };
 }
 
 function formatChapter(section: ParsedSection): string {
@@ -218,6 +283,40 @@ export function chunkSections(
         charStart: partial.charStart,
         charEnd: partial.charEnd,
         tokenCount: partial.tokenCount,
+      });
+    }
+  }
+  return chunks;
+}
+
+/**
+ * Parent-document chunker. Splits each section into naive-sized CHILDREN (the
+ * embedded/retrieved unit) but tags every child with its full parent SECTION.
+ * Children are identical to what `chunkSections` would produce for the same
+ * options — so retrieval recall matches that flat variant exactly — while the
+ * parent pointer lets the query layer expand to section context for the LLM.
+ */
+export function chunkSectionsParentChild(
+  sections: ParsedSection[],
+  childOpts: ChunkOptions = DEFAULT_CHUNK_OPTIONS,
+): Chunk[] {
+  const chunks: Chunk[] = [];
+  for (const section of sections) {
+    const chapter = formatChapter(section);
+    const parent = {
+      text: section.text,
+      charStart: section.charStart,
+      charEnd: section.charEnd,
+    };
+    for (const partial of splitSection(section, childOpts)) {
+      chunks.push({
+        chunkIndex: chunks.length,
+        chapter,
+        text: partial.text,
+        charStart: partial.charStart,
+        charEnd: partial.charEnd,
+        tokenCount: partial.tokenCount,
+        parent,
       });
     }
   }

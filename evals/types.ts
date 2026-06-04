@@ -30,6 +30,25 @@ export type Category =
   | 'out-of-scope';
 
 /**
+ * A gold answer location, expressed as a character span in a source's
+ * `cleanedText` — NOT as a chunk ID. This is the load-bearing change of
+ * Module 6.1: chunk IDs are version-specific (re-chunking mints new rows
+ * with new IDs), so gold labeled by ID can only score the one chunking
+ * variant it was labeled against. A span is chunking-invariant — every
+ * variant derives its `char_start`/`char_end` from the SAME `cleanedText`
+ * coordinate system — so ONE golden set scores ALL variants. Recall then
+ * asks "did a retrieved chunk cover this span?" (see recall.ts).
+ */
+export interface GoldSpan {
+  /** sources.slug — pins the span to one source document. */
+  sourceSlug: string;
+  /** Inclusive start offset into that source's cleanedText. */
+  charStart: number;
+  /** Exclusive end offset into that source's cleanedText. */
+  charEnd: number;
+}
+
+/**
  * One entry in the golden set. JSON-serialisable so we can store the set
  * in `evals/golden-set.json` and version it through code review.
  */
@@ -41,12 +60,20 @@ export interface GoldenEntry {
   /** What a perfect answer looks like. Used by generation metrics (Turn 3). */
   idealAnswer: string;
   /**
-   * Chunk IDs (chunks.id values) that contain enough information to answer.
-   * Empty array for out-of-scope questions (where the right behavior is
-   * refusal, not retrieval). For multi-hop/synthesis questions, list every
-   * chunk that supplies a fact the ideal answer relies on.
+   * Source spans that contain enough information to answer — the canonical,
+   * chunking-invariant gold label. Empty array for out-of-scope questions
+   * (where the right behavior is refusal, not retrieval). For multi-hop /
+   * synthesis / contradiction questions, list every span supplying a fact
+   * the ideal answer relies on; recall = fraction of these spans covered.
    */
-  goldChunkIds: number[];
+  goldSpans: GoldSpan[];
+  /**
+   * LEGACY (Module 5): the naive-v1 chunk IDs this entry was originally
+   * labeled against. Superseded by `goldSpans` (which were derived from
+   * these by `evals/migrate-gold-to-spans.ts`). Retained only for audit /
+   * provenance — the harness no longer reads it. Do not add new entries here.
+   */
+  goldChunkIds?: number[];
   /** Optional: why this question belongs to this category, gotchas. */
   notes?: string;
 }
@@ -157,6 +184,10 @@ export interface BatchResult {
   config: {
     embedder: string;
     chunkingVersion: string;
+    /** 'vector' | 'hybrid' — retrieval strategy (Module 6.2). */
+    retrievalMode?: string;
+    /** Reranker label or 'off' (Module 6.3). */
+    rerank?: string;
     topK: number;
     timestamp: string;
     /** Present when --generation was on. */

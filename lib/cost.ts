@@ -143,18 +143,17 @@ export type OpenAIEmbeddingModel =
   (typeof OPENAI_EMBEDDING_MODELS)[keyof typeof OPENAI_EMBEDDING_MODELS];
 
 /**
- * LM Studio embedding model identifiers. The ID is whatever LM Studio
- * normalized your loaded GGUF to — for BGE-M3 the canonical name is
- * `text-embedding-bge-m3`. Verify in LM Studio's UI / `GET /v1/models`
- * if a call 404s on you.
+ * Local (llama.cpp / llama-swap) embedding model identifiers. The ID is the
+ * model NAME in the llama-swap config — for BGE-M3 we expose it as `bge-m3`.
+ * Verify against `GET /v1/models` on the llama-swap port if a call 404s on you.
  */
-export const LM_STUDIO_EMBEDDING_MODELS = {
+export const LLAMACPP_EMBEDDING_MODELS = {
   /** BAAI BGE-M3, 1024-dim. Multilingual, dense + sparse + colbert in one. */
-  bgeM3: 'text-embedding-bge-m3',
+  bgeM3: 'bge-m3',
 } as const;
 
-export type LMStudioEmbeddingModel =
-  (typeof LM_STUDIO_EMBEDDING_MODELS)[keyof typeof LM_STUDIO_EMBEDDING_MODELS];
+export type LlamacppEmbeddingModel =
+  (typeof LLAMACPP_EMBEDDING_MODELS)[keyof typeof LLAMACPP_EMBEDDING_MODELS];
 
 interface EmbeddingPricing {
   /** USD per million input tokens. */
@@ -183,7 +182,7 @@ export const OPENAI_EMBEDDING_PRICES: Record<string, EmbeddingPricing> = {
 export const EMBEDDING_DIMENSIONS: Record<string, number> = {
   [OPENAI_EMBEDDING_MODELS.small]: 1536,
   [OPENAI_EMBEDDING_MODELS.large]: 3072,
-  [LM_STUDIO_EMBEDDING_MODELS.bgeM3]: 1024,
+  [LLAMACPP_EMBEDDING_MODELS.bgeM3]: 1024,
 };
 
 /**
@@ -207,8 +206,8 @@ export function calculateOpenAIEmbeddingCost(inputTokens: number, model: string)
   };
 }
 
-/** LM Studio embedding cost — always zero, kept symmetric for tracer plumbing. */
-export function calculateLMStudioEmbeddingCost(_inputTokens: number): Cost {
+/** Local (llama.cpp) embedding cost — always zero, kept symmetric for tracer plumbing. */
+export function calculateLlamacppEmbeddingCost(_inputTokens: number): Cost {
   return ZERO_COST;
 }
 

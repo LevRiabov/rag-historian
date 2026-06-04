@@ -40,11 +40,9 @@ console.error('[lm-studio] module loaded');
 class LmStudioProvider {
   constructor(options = {}) {
     const config = options.config ?? {};
-    this.providerId =
-      options.id ?? `lmstudio:${config.model ?? DEFAULT_MODEL}`;
+    this.providerId = options.id ?? `lmstudio:${config.model ?? DEFAULT_MODEL}`;
     this.config = {
-      baseUrl:
-        config.baseUrl ?? process.env.LM_STUDIO_BASE_URL ?? DEFAULT_BASE_URL,
+      baseUrl: config.baseUrl ?? process.env.LM_STUDIO_BASE_URL ?? DEFAULT_BASE_URL,
       model: config.model ?? DEFAULT_MODEL,
       max_tokens: config.max_tokens ?? DEFAULT_MAX_TOKENS,
       temperature: config.temperature ?? DEFAULT_TEMPERATURE,
@@ -93,9 +91,7 @@ class LmStudioProvider {
 
     if (!response.ok) {
       const text = await response.text().catch(() => '(no body)');
-      console.error(
-        `[lm-studio] HTTP ${response.status}: ${text.slice(0, 200)}`,
-      );
+      console.error(`[lm-studio] HTTP ${response.status}: ${text.slice(0, 200)}`);
       return {
         error: `LM Studio HTTP ${response.status}: ${text.slice(0, 300)}`,
       };

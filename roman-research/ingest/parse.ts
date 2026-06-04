@@ -287,12 +287,7 @@ function parseCaesarPortion(cleanedText: string): ParsedSection[] {
     const bookBody = cleanedText.slice(bookStart, bookEnd);
     // Section regex: "I.--", "II.--", ... at start of line. Caesar's
     // distinctive double-dash separator avoids false positives.
-    const bookSections = splitBySectionRegex(
-      bookBody,
-      /^([IVXLC]+)\.--/gm,
-      bookLabel,
-      bookStart,
-    );
+    const bookSections = splitBySectionRegex(bookBody, /^([IVXLC]+)\.--/gm, bookLabel, bookStart);
     sections.push(...bookSections);
   }
   return sections;
@@ -307,12 +302,7 @@ function parseCaesarPortion(cleanedText: string): ParsedSection[] {
  *   II. The pirates asked Cæsar twenty talents...
  */
 function parsePlutarchPortion(cleanedText: string): ParsedSection[] {
-  return splitBySectionRegex(
-    cleanedText,
-    /^([IVXLC]+)\.(?:\[\d+\])?\s+/gm,
-    null,
-    0,
-  );
+  return splitBySectionRegex(cleanedText, /^([IVXLC]+)\.(?:\[\d+\])?\s+/gm, null, 0);
 }
 
 /**
@@ -322,12 +312,7 @@ function parsePlutarchPortion(cleanedText: string): ParsedSection[] {
  * Example: "VIII.  Quitting therefore the province..."
  */
 function parseSuetoniusPortion(cleanedText: string): ParsedSection[] {
-  return splitBySectionRegex(
-    cleanedText,
-    /^([IVXLC]+)\.\s+/gm,
-    null,
-    0,
-  );
+  return splitBySectionRegex(cleanedText, /^([IVXLC]+)\.\s+/gm, null, 0);
 }
 
 // ============================================================================

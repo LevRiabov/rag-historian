@@ -28,9 +28,15 @@ import pgvector from 'pgvector/pg';
 
 import { CLAUDE_MODELS, type ClaudeModel, type EmbeddingProvider } from '../lib/index.ts';
 import { answerQuestion, DEFAULT_LLM, type LLMChoice } from '../roman-research/query/answer.ts';
-import { retrieve } from '../roman-research/query/retrieve.ts';
+import { expandToParents, retrieve } from '../roman-research/query/retrieve.ts';
 import { classifyRefusal, createJudge } from './metrics/generation.ts';
-import { mean, recallAtK, reciprocalRank } from './metrics/recall.ts';
+import {
+  type ChunkRange,
+  covers,
+  mean,
+  spanRecallAtK,
+  spanReciprocalRank,
+} from './metrics/recall.ts';
 import {
   type BatchResult,
   type Category,
@@ -67,17 +73,27 @@ for (const a of args) {
   if (k?.[1]) flags[k[1]] = '';
 }
 
-const embedder = (flags.embedder ?? 'lmstudio') as EmbeddingProvider;
+const embedder = (flags.embedder ?? 'llamacpp') as EmbeddingProvider;
 const goldenPath = flags.golden ?? path.join('evals', 'golden-set.json');
 const outPath = flags.out;
 const chunkingVersion = flags['chunking-version'] ?? 'naive-v1';
+// --hybrid: dense + lexical (BM25-style FTS) fused via RRF (Module 6.2).
+// Default vector-only mirrors the Module 4/5 baseline.
+const retrievalMode: 'vector' | 'hybrid' = flags.hybrid !== undefined ? 'hybrid' : 'vector';
+// Weight on the lexical (BM25) RRF arm; <1 down-weights it so it adds signal
+// on exact-term queries without overriding the vector arm on semantic ones.
+const lexicalWeight = Number(flags['lexical-weight'] ?? '1');
+// --rerank: second-stage cross-encoder (Module 6.3). --rerank-pool sets how
+// many first-stage candidates get reranked (default 50).
+const rerankEnabled = flags.rerank !== undefined;
+const rerankPoolK = Number(flags['rerank-pool'] ?? '50');
 const genEnabled = flags.generation !== undefined || flags.full !== undefined;
 const llm = (flags.llm ?? DEFAULT_LLM) as LLMChoice;
-// Optional override for the specific LM Studio model — pass the same string
-// LM Studio uses, e.g. 'openai/gpt-oss-20b' or 'qwen/qwen3.5-9b'. Only
-// honored when llm='lmstudio'; ignored for Claude routes. Default lives in
-// roman-research/query/answer.ts (qwen3.5-9b).
-const lmStudioModel = flags['lmstudio-model'] || undefined;
+// Optional override for the llama-swap model profile — pass a profile name
+// from the llama-swap config, e.g. 'qwen-9b-32k'. Only honored when
+// llm='llamacpp'; ignored for Claude routes. Default lives in
+// roman-research/query/answer.ts (qwen-9b-16k).
+const llamacppModel = flags['llamacpp-model'] || undefined;
 // Generator K — how many chunks we PASS TO THE LLM (matches production
 // query pipeline). Distinct from RETRIEVE_TOP_K (20), which is the wider
 // candidate set we score recall@k against. Default 5 mirrors what a real
@@ -98,10 +114,15 @@ const showAnswers = flags['show-answers'] !== undefined;
 const goldenRaw = await readFile(goldenPath, 'utf-8');
 const golden = JSON.parse(goldenRaw) as GoldenEntry[];
 console.log(`Loaded ${golden.length} questions from ${goldenPath}`);
-console.log(`Embedder: ${embedder}  |  Chunking: ${chunkingVersion}  |  Top-K: ${RETRIEVE_TOP_K}`);
+const rerankDesc = rerankEnabled ? `on (pool ${rerankPoolK})` : 'off';
+console.log(
+  `Embedder: ${embedder}  |  Chunking: ${chunkingVersion}  |  Mode: ${retrievalMode}  |  Rerank: ${rerankDesc}  |  Top-K: ${RETRIEVE_TOP_K}`,
+);
 if (genEnabled) {
-  const llmDesc = llm === 'lmstudio' && lmStudioModel ? `lmstudio (${lmStudioModel})` : llm;
-  console.log(`Generation: ON  |  Generator: ${llmDesc} (top-${generatorTopK} chunks)  |  Judge: ${judgeModel}`);
+  const llmDesc = llm === 'llamacpp' && llamacppModel ? `llamacpp (${llamacppModel})` : llm;
+  console.log(
+    `Generation: ON  |  Generator: ${llmDesc} (top-${generatorTopK} chunks)  |  Judge: ${judgeModel}`,
+  );
 } else {
   console.log(`Generation: OFF (retrieval-only run)`);
 }
@@ -138,19 +159,36 @@ for (const entry of golden) {
 
   // --- Retrieve ---------------------------------------------------------
   const tR = Date.now();
-  const retrieved = await retrieve(db, entry.question, { topK: RETRIEVE_TOP_K, provider: embedder });
+  const retrieved = await retrieve(db, entry.question, {
+    topK: RETRIEVE_TOP_K,
+    provider: embedder,
+    chunkingVersion,
+    mode: retrievalMode,
+    lexicalWeight,
+    rerank: rerankEnabled,
+    rerankPoolK,
+  });
   const latencyMs = Date.now() - tR;
   const retrievedIds = retrieved.map((r) => r.chunkId);
   const similarities = retrieved.map((r) => Number(r.similarity.toFixed(3)));
 
+  // Map to the minimal shape recall.ts needs, preserving retrieval order so
+  // recall@k / MRR see the same ranking the generator would.
+  const ranges: ChunkRange[] = retrieved.map((r) => ({
+    sourceSlug: r.source.slug,
+    charStart: r.charStart,
+    charEnd: r.charEnd,
+  }));
+
   const recallByK: Record<number, number> = {};
   for (const k of EVAL_K_VALUES) {
-    recallByK[k] = recallAtK(retrievedIds, entry.goldChunkIds, k);
+    recallByK[k] = spanRecallAtK(ranges, entry.goldSpans, k);
   }
-  const rr = reciprocalRank(retrievedIds, entry.goldChunkIds);
-  const goldHits = entry.goldChunkIds.length === 0
-    ? 'n/a (out-of-scope)'
-    : `${entry.goldChunkIds.filter((g) => retrievedIds.includes(g)).length}/${entry.goldChunkIds.length}`;
+  const rr = spanReciprocalRank(ranges, entry.goldSpans);
+  const goldHits =
+    entry.goldSpans.length === 0
+      ? 'n/a (out-of-scope)'
+      : `${entry.goldSpans.filter((span) => ranges.some((c) => covers(c, span))).length}/${entry.goldSpans.length}`;
   console.log(
     `  retrieve: ${latencyMs}ms  | gold hits in top-${RETRIEVE_TOP_K}: ${goldHits}  | recall@5=${fmtPct(recallByK[5] ?? Number.NaN).trim()}  MRR=${Number.isNaN(rr) ? '-' : rr.toFixed(3)}`,
   );
@@ -160,7 +198,12 @@ for (const entry of golden) {
     for (let i = 0; i < Math.min(3, retrieved.length); i++) {
       const c = retrieved[i];
       if (!c) continue;
-      const isGold = entry.goldChunkIds.includes(c.chunkId) ? '★' : ' ';
+      const range: ChunkRange = {
+        sourceSlug: c.source.slug,
+        charStart: c.charStart,
+        charEnd: c.charEnd,
+      };
+      const isGold = entry.goldSpans.some((span) => covers(range, span)) ? '★' : ' ';
       console.log(
         `    ${isGold} [${i + 1}] sim=${c.similarity.toFixed(3)}  ${c.source.author}, ${c.chapter}  (chunk_id=${c.chunkId})`,
       );
@@ -178,10 +221,14 @@ for (const entry of golden) {
       // gets through `roman-research/query`. Sending all 20 retrieved chunks
       // would (a) blow past LM Studio's 8192 context, (b) not reflect the
       // production pipeline we want to score.
-      const generatorChunks = retrieved.slice(0, generatorTopK);
+      //
+      // Slice to K FIRST, then expand parents (parent-child-v1) — so K bounds
+      // the parent count and de-duped siblings can yield <K blocks. No-op for
+      // flat variants (no parent pointer).
+      const generatorChunks = expandToParents(retrieved.slice(0, generatorTopK));
 
       const tG = Date.now();
-      const answer = await answerQuestion(entry.question, generatorChunks, { llm, lmStudioModel });
+      const answer = await answerQuestion(entry.question, generatorChunks, { llm, llamacppModel });
       const genMs = Date.now() - tG;
       console.log(
         `  generate: ${genMs}ms  (${answer.outputTokens} out tok, ${tokPerSec(answer.outputTokens, genMs)} tok/s, ${answer.llmLabel})`,
@@ -199,16 +246,26 @@ for (const entry of golden) {
         judge.refusal(answer.text),
       ]);
       const judgeMs = Date.now() - tJ;
-      const shouldRefuse = entry.category === 'out-of-scope' || entry.goldChunkIds.length === 0;
+      const shouldRefuse = entry.category === 'out-of-scope' || entry.goldSpans.length === 0;
       const classification = classifyRefusal(refusalJudgment.didRefuse, shouldRefuse);
       console.log(
         `  judge:    ${judgeMs}ms  F=${faith.score}/5  C=${complete.score}/5  R=${classification}`,
       );
       if (showAnswers && faith.unsupportedClaims.length > 0) {
-        console.log(`    unsupported: ${faith.unsupportedClaims.slice(0, 2).map((c) => '"' + c.slice(0, 100) + '"').join('; ')}`);
+        console.log(
+          `    unsupported: ${faith.unsupportedClaims
+            .slice(0, 2)
+            .map((c) => '"' + c.slice(0, 100) + '"')
+            .join('; ')}`,
+        );
       }
       if (showAnswers && complete.missedFacts.length > 0) {
-        console.log(`    missed:      ${complete.missedFacts.slice(0, 2).map((c) => '"' + c.slice(0, 100) + '"').join('; ')}`);
+        console.log(
+          `    missed:      ${complete.missedFacts
+            .slice(0, 2)
+            .map((c) => '"' + c.slice(0, 100) + '"')
+            .join('; ')}`,
+        );
       }
 
       generation = {
@@ -271,31 +328,29 @@ function aggregateMRR(rs: QuestionResult[]): number {
   return mean(rs.map((r) => r.mrr));
 }
 
-function aggregateGeneration(rs: QuestionResult[]):
+function aggregateGeneration(
+  rs: QuestionResult[],
+):
   | { answeredCount: number; faithfulness: number; completeness: number; refusalAccuracy: number }
   | undefined {
   const withGen = rs.filter((r) => r.generation !== undefined);
   if (withGen.length === 0) return undefined;
   return {
     answeredCount: withGen.length,
-    faithfulness: mean(
-      withGen.map((r) => (r.generation as GenerationScore).faithfulness.score),
-    ),
-    completeness: mean(
-      withGen.map((r) => (r.generation as GenerationScore).completeness.score),
-    ),
+    faithfulness: mean(withGen.map((r) => (r.generation as GenerationScore).faithfulness.score)),
+    completeness: mean(withGen.map((r) => (r.generation as GenerationScore).completeness.score)),
     refusalAccuracy:
       withGen.filter((r) => (r.generation as GenerationScore).refusal.correct).length /
       withGen.length,
   };
 }
 
-const inScope = results.filter((r) => r.entry.goldChunkIds.length > 0);
+const inScope = results.filter((r) => r.entry.goldSpans.length > 0);
 
 const byCategory = {} as BatchResult['aggregates']['byCategory'];
 for (const cat of CATEGORIES) {
   const catResults = results.filter((r) => r.entry.category === cat);
-  const inScopeCat = catResults.filter((r) => r.entry.goldChunkIds.length > 0);
+  const inScopeCat = catResults.filter((r) => r.entry.goldSpans.length > 0);
   byCategory[cat] = {
     count: catResults.length,
     recallAtK: aggregateRecall(inScopeCat),
@@ -318,13 +373,13 @@ const batch: BatchResult = {
     recallAtK: aggregateRecall(inScope),
     mrr: aggregateMRR(inScope),
     byCategory,
-    generation: topGenAgg
-      ? { ...topGenAgg, totalJudgeCostUSD, totalGeneratorCostUSD }
-      : undefined,
+    generation: topGenAgg ? { ...topGenAgg, totalJudgeCostUSD, totalGeneratorCostUSD } : undefined,
   },
   config: {
     embedder,
     chunkingVersion,
+    retrievalMode,
+    rerank: rerankEnabled ? `bge-reranker-v2-m3 (pool ${rerankPoolK})` : 'off',
     topK: RETRIEVE_TOP_K,
     timestamp: new Date().toISOString(),
     generator: genEnabled ? llm : undefined,

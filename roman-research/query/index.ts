@@ -9,8 +9,8 @@
  *
  * Flags:
  *   --k=<n>             top-K chunks to retrieve (default 5)
- *   --embedder=<name>   'lmstudio' (BGE-M3, default) or 'openai' (text-embedding-3-small)
- *   --llm=<name>        'lmstudio' (default, free, local gpt-oss-20b),
+ *   --embedder=<name>   'llamacpp' (BGE-M3, default) or 'openai' (text-embedding-3-small)
+ *   --llm=<name>        'llamacpp' (default, free, local qwen-9b-16k),
  *                       'claude-sonnet' | 'claude-haiku' | 'claude-opus'
  *
  * This is the Module 4 deliverable: naive RAG end-to-end, no eval yet.
@@ -25,7 +25,7 @@ import pgvector from 'pgvector/pg';
 
 import type { EmbeddingProvider } from '../../lib/index.ts';
 import { answerQuestion, DEFAULT_LLM, type LLMChoice } from './answer.ts';
-import { formatCitation, retrieve, type RetrievedChunk } from './retrieve.ts';
+import { expandToParents, formatCitation, type RetrievedChunk, retrieve } from './retrieve.ts';
 
 // ---------------------------------------------------------------------------
 // CLI parsing — minimal, no library. Flags are `--key=value`.
@@ -34,22 +34,33 @@ const args = process.argv.slice(2);
 const flags: Record<string, string> = {};
 const positional: string[] = [];
 for (const arg of args) {
-  const m = /^--([^=]+)=(.+)$/.exec(arg);
-  if (m?.[1] && m[2]) flags[m[1]] = m[2];
-  else positional.push(arg);
+  const kv = /^--([^=]+)=(.+)$/.exec(arg);
+  if (kv?.[1] && kv[2]) {
+    flags[kv[1]] = kv[2];
+    continue;
+  }
+  // Bare boolean flag, e.g. `--hybrid` → empty string marks it "set".
+  const bare = /^--(.+)$/.exec(arg);
+  if (bare?.[1]) {
+    flags[bare[1]] = '';
+    continue;
+  }
+  positional.push(arg);
 }
 const question = positional.join(' ').trim();
 if (!question) {
   console.error(
-    'Usage: pnpm dev roman-research/query/index.ts "<question>" [--k=5] [--embedder=lmstudio|openai] [--llm=lmstudio|claude-sonnet|claude-haiku|claude-opus]',
+    'Usage: pnpm dev roman-research/query/index.ts "<question>" [--k=5] [--embedder=llamacpp|openai] [--llm=llamacpp|claude-sonnet|claude-haiku|claude-opus]',
   );
   process.exit(1);
 }
 
-const VALID_LLMS: LLMChoice[] = ['lmstudio', 'claude-sonnet', 'claude-haiku', 'claude-opus'];
+const VALID_LLMS: LLMChoice[] = ['llamacpp', 'claude-sonnet', 'claude-haiku', 'claude-opus'];
 
 const topK = Number(flags.k ?? '5');
-const embedder = (flags.embedder ?? 'lmstudio') as EmbeddingProvider;
+const embedder = (flags.embedder ?? 'llamacpp') as EmbeddingProvider;
+const chunkingVersion = flags['chunking-version'] ?? 'naive-v1';
+const retrievalMode: 'vector' | 'hybrid' = flags.hybrid !== undefined ? 'hybrid' : 'vector';
 const llmFlag = flags.llm ?? DEFAULT_LLM;
 if (!VALID_LLMS.includes(llmFlag as LLMChoice)) {
   console.error(`Unknown --llm value: ${llmFlag}. Valid: ${VALID_LLMS.join(', ')}`);
@@ -70,13 +81,20 @@ await pgvector.registerType(db);
 
 console.log(`\n=== Roman Research Agent ===`);
 console.log(`Q:        ${question}`);
-console.log(`Embedder: ${embedder}  |  top-K: ${topK}  |  LLM: ${llm}\n`);
+console.log(
+  `Embedder: ${embedder}  |  top-K: ${topK}  |  LLM: ${llm}  |  chunking: ${chunkingVersion}  |  mode: ${retrievalMode}\n`,
+);
 
 // ---------------------------------------------------------------------------
 // Retrieve
 // ---------------------------------------------------------------------------
 const tRetrieve = Date.now();
-const chunks: RetrievedChunk[] = await retrieve(db, question, { topK, provider: embedder });
+const chunks: RetrievedChunk[] = await retrieve(db, question, {
+  topK,
+  provider: embedder,
+  chunkingVersion,
+  mode: retrievalMode,
+});
 console.log(`Retrieved ${chunks.length} chunks in ${Date.now() - tRetrieve}ms:\n`);
 
 for (let i = 0; i < chunks.length; i++) {
@@ -92,7 +110,9 @@ console.log();
 // Answer
 // ---------------------------------------------------------------------------
 console.log(`Generating answer...\n`);
-const answer = await answerQuestion(question, chunks, { llm });
+// parent-child-v1: expand retrieved children to their parent sections before
+// generation. No-op for flat variants.
+const answer = await answerQuestion(question, expandToParents(chunks), { llm });
 console.log(`--- Answer (${answer.llmLabel}) ---`);
 console.log(answer.text);
 console.log();

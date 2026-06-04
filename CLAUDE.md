@@ -22,7 +22,7 @@ Baseline numbers + eval methodology locked in: see [notes/module-5-evals.md](not
 - **Lint + format:** Biome (single tool, replaces ESLint + Prettier)
 - **Env:** `dotenv`, single `.env` at repo root
 - **LLM SDKs:** `@anthropic-ai/sdk` for Claude; OpenAI SDK reused for OpenAI proper + LM Studio (OpenAI-compatible) when modules need them
-- **Local inference:** LM Studio is primary (`http://localhost:1234/v1`); Ollama secondary. Mini-projects pick via `createLocalLLM({ lmstudio, ollama })`; `LOCAL_LLM_PROVIDER=ollama` flips at runtime. LM Studio's GBNF is a hard token-level constraint; Ollama's per-model renderers engage GBNF inconsistently (Gemma 4 leaks out-of-enum values).
+- **Local inference:** roman-research runs on **llama.cpp via llama-swap** (native, `http://127.0.0.1:8080`, server lives at `C:\llm`) for all three: chat (`createLlamacpp`, Qwen3.5-9B profiles — thinking on/off is per-profile via `--reasoning`), embeddings (bge-m3), and reranking (bge-reranker-v2-m3). `LLAMA_SWAP_BASE_URL` points at it. Early mini-projects (01–05) still use **LM Studio** (primary, `:1234`) / Ollama via `createLocalLLM({ lmstudio, ollama })`, flipped by `LOCAL_LLM_PROVIDER`. GBNF is a hard token-level constraint on both LM Studio and llama.cpp; Ollama's per-model renderers engage it inconsistently (Gemma 4 leaks out-of-enum values).
 - **DB:** Postgres 16 + pgvector — landed in Module 3, not before
 - **Tracing:** Langfuse — wired in Module 1, not Module 0
 - **Evals:** Promptfoo — Module 5

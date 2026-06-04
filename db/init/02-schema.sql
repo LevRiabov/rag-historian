@@ -83,6 +83,12 @@ CREATE TABLE IF NOT EXISTS chunks (
   embedding         VECTOR(1536),               -- OpenAI text-embedding-3-small
   embedding_bge     VECTOR(1024),               -- BAAI BGE-M3 via LM Studio
   metadata          JSONB,                      -- {token_count, ...}
+  -- Module 6.2 hybrid search: a generated tsvector of the chunk text for
+  -- lexical (keyword) retrieval alongside the dense vectors. STORED +
+  -- GENERATED means it's always in sync with `text` — no app-side upkeep.
+  -- 'english' config gives stemming + stopword removal; good for our English
+  -- translations and harmless to distinctive proper nouns (Pharsalus, etc.).
+  text_tsv          TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
   UNIQUE (source_id, chunking_version, chunk_index)
 );
 
@@ -94,3 +100,15 @@ CREATE INDEX IF NOT EXISTS chunks_embedding_bge_hnsw
 
 CREATE INDEX IF NOT EXISTS chunks_source_idx
   ON chunks (source_id, chunking_version, chunk_index);
+
+-- GIN index over the generated tsvector — Postgres core FTS. SUPERSEDED in
+-- Module 6.2 by the BM25 index below (core FTS lacks IDF). Kept for reference
+-- / rollback; unused by the query path. Safe to drop.
+CREATE INDEX IF NOT EXISTS chunks_text_tsv_gin
+  ON chunks USING GIN (text_tsv);
+
+-- BM25 index (pg_search) — the lexical half of hybrid search (Module 6.2).
+-- key_field must be the PK. Queried with `id @@@ paradedb.match('text', ?)`
+-- and ranked by `paradedb.score(id)`. Real IDF term weighting, unlike core FTS.
+CREATE INDEX IF NOT EXISTS chunks_bm25
+  ON chunks USING bm25 (id, text) WITH (key_field='id');

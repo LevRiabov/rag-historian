@@ -30,6 +30,7 @@ import pg from 'pg';
 import pgvector from 'pgvector/pg';
 
 import { retrieve } from '../../roman-research/query/retrieve.ts';
+import { type ChunkRange, covers } from '../metrics/recall.ts';
 import type { GoldenEntry } from '../types.ts';
 
 /** Matches what production passes to the LLM (mirrors roman-research/query). */
@@ -75,22 +76,23 @@ const tests: PromptfooTestCase[] = [];
 
 for (const entry of golden) {
   process.stdout.write(`  [${entry.id}] retrieving... `);
-  const retrieved = await retrieve(db, entry.question, { topK: TOP_K, provider: 'lmstudio' });
+  const retrieved = await retrieve(db, entry.question, { topK: TOP_K, provider: 'llamacpp' });
 
   // Same format as roman-research/query/answer.ts formatUserMessage's sources block.
   const sourcesBlock = retrieved
     .map(
-      (c, i) =>
-        `[${i + 1}] ${c.source.author}, ${c.source.title}, ${c.chapter}\n${c.text.trim()}`,
+      (c, i) => `[${i + 1}] ${c.source.author}, ${c.source.title}, ${c.chapter}\n${c.text.trim()}`,
     )
     .join('\n\n');
 
-  const goldHits = entry.goldChunkIds.filter((g) =>
-    retrieved.some((r) => r.chunkId === g),
-  ).length;
+  const ranges: ChunkRange[] = retrieved.map((r) => ({
+    sourceSlug: r.source.slug,
+    charStart: r.charStart,
+    charEnd: r.charEnd,
+  }));
+  const goldHits = entry.goldSpans.filter((span) => ranges.some((c) => covers(c, span))).length;
 
-  const shouldRefuse =
-    entry.goldChunkIds.length === 0 || entry.category === 'out-of-scope';
+  const shouldRefuse = entry.goldSpans.length === 0 || entry.category === 'out-of-scope';
 
   tests.push({
     description: entry.id,
@@ -107,7 +109,7 @@ for (const entry of golden) {
       gold_hits_in_topk: goldHits,
     },
   });
-  console.log(`done (${retrieved.length} chunks, ${goldHits}/${entry.goldChunkIds.length} gold)`);
+  console.log(`done (${retrieved.length} chunks, ${goldHits}/${entry.goldSpans.length} gold)`);
 }
 
 await db.end();

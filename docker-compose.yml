@@ -1,13 +1,24 @@
-# Local Postgres 16 + pgvector for the Roman Research Agent.
-# The `pgvector/pgvector:pg16` image is the official pgvector image on top
-# of the official postgres:16 image — same entrypoint behavior, so any .sql
-# file in /docker-entrypoint-initdb.d runs ONCE on the very first start
-# (when the data volume is empty). That's how `CREATE EXTENSION vector;`
-# gets wired in automatically — see db/init/01-extensions.sql.
+# Local Postgres + pgvector + pg_search (BM25) for the Roman Research Agent.
+#
+# Embeddings + reranking are NOT here — they moved to the native llama-swap
+# server (C:\llm; bge-m3 /v1/embeddings + bge-reranker-v2-m3 /v1/rerank). The
+# old Infinity service was retired once llama.cpp matched it (embeddings
+# cosine 1.0 vs the index; reranker ordering identical). This file is now just
+# the database.
+#
+# Module 6.2 swapped the base image from `pgvector/pgvector:pg16` to ParadeDB,
+# which bundles BOTH pgvector AND pg_search (real BM25 with IDF). Postgres core
+# FTS lacks IDF, so its ts_rank can't down-weight ubiquitous terms like
+# "Caesar" in a single-topic corpus — see notes/module-6-advanced-rag.md.
+# Same postgres entrypoint, so db/init/*.sql still runs ONCE on a fresh volume.
+#
+# Rollback: restore `image: pgvector/pgvector:pg16`, drop the pg_search line
+# from 01-extensions.sql, then `docker compose down -v && up -d` + re-ingest.
 
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    # image: pgvector/pgvector:pg16   # pre-6.2 (pgvector only, no BM25)
+    image: paradedb/paradedb:latest
     container_name: rag-historian-pg
     restart: unless-stopped
     environment:
@@ -17,7 +28,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # PG18+ (ParadeDB latest) stores data in a version subdir, so the mount
+      # goes at /var/lib/postgresql (NOT /data — that layout is rejected on 18).
+      - pgdata:/var/lib/postgresql
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rag -d rag_historian"]

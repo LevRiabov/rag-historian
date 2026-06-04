@@ -1,54 +1,86 @@
 /**
- * evals/metrics/recall.ts — recall@k and Mean Reciprocal Rank.
+ * evals/metrics/recall.ts — recall@k and Mean Reciprocal Rank, scored over
+ * chunking-invariant GOLD SPANS rather than chunk IDs.
  *
- * recall@k: "Of the gold-labeled chunks, how many did the retriever
- *           return in its top-K?" Range [0, 1]. Higher is better.
- *           Formula: |retrieved[:k] ∩ gold| / |gold|
+ * Why span-based (Module 6.1): chunk IDs are minted per chunking variant, so
+ * ID-based gold can only score the one variant it was labeled against. Gold
+ * SPANS — character ranges in a source's cleanedText — are shared across all
+ * variants (every variant's char_start/char_end live in the same coordinate
+ * system). So one golden set scores every chunking strategy.
  *
- * MRR:      "How high did the FIRST relevant chunk rank?"
+ * recall@k: "Of the gold spans, how many were COVERED by some chunk in the
+ *           top-K retrieved?" Range [0, 1]. Higher is better.
+ *
+ * MRR:      "How high did the FIRST chunk covering ANY gold span rank?"
  *           Range [0, 1]. 1.0 means the top result was always relevant.
- *           Formula: mean over questions of 1 / rank-of-first-hit.
  *
- * Why both: recall@k measures coverage (did we get the chunks at all?);
- * MRR measures ordering (did we get them HIGH?). A retriever can score
- * well on recall@20 but poorly on MRR if relevant chunks always rank
- * 15-20 instead of 1-5. That's the case for reranking to fix.
+ * Coverage rule — a chunk "covers" a span if the chunk's char range contains
+ * the span's MIDPOINT (same source). Midpoint, not any-overlap, on purpose:
+ *   - naive-v1 chunks overlap neighbors by ~50 tokens, so an any-overlap rule
+ *     would let a neighbor that merely clips a span's edge count as a hit,
+ *     inflating recall. The midpoint of a span falls inside exactly the chunk
+ *     that actually holds it — reproducing the old ID-based gold for small
+ *     chunks while still working for whole-chapter chunks.
+ *   - Caveat that remains: bigger chunks cover more spans for free, so recall
+ *     is granularity-biased UP for coarse chunking. Always read a chunking
+ *     A/B alongside the generation metrics (faithfulness/completeness/cost),
+ *     never recall alone.
  *
- * Out-of-scope questions (goldChunkIds = []) make recall undefined —
- * dividing by zero. Callers should skip those questions before aggregating.
+ * Out-of-scope questions (goldSpans = []) make recall undefined — dividing by
+ * zero. Callers should skip those questions before aggregating.
  */
 
-/**
- * Fraction of gold chunks that appear in the top-K retrieved.
- * Returns NaN if there are no gold chunks (caller should skip).
- */
-export function recallAtK(retrievedIds: number[], goldIds: number[], k: number): number {
-  if (goldIds.length === 0) return Number.NaN;
-  const topK = new Set(retrievedIds.slice(0, k));
+import type { GoldSpan } from '../types.ts';
+
+/** The minimum a retrieved chunk must expose for span matching: which source
+ *  it belongs to and where it sits in that source's cleanedText. Structurally
+ *  satisfied by RetrievedChunk (via its `source.slug` + char offsets); callers
+ *  map to this shape so recall.ts stays decoupled from the retrieval types. */
+export interface ChunkRange {
+  sourceSlug: string;
+  charStart: number;
+  charEnd: number;
+}
+
+/** Does `chunk` cover `span`? True iff same source and the chunk's range
+ *  contains the span's midpoint. */
+export function covers(chunk: ChunkRange, span: GoldSpan): boolean {
+  if (chunk.sourceSlug !== span.sourceSlug) return false;
+  const midpoint = (span.charStart + span.charEnd) / 2;
+  return chunk.charStart <= midpoint && midpoint < chunk.charEnd;
+}
+
+/** How many of `gold` spans are covered by at least one chunk in `chunks`? */
+export function coveredCount(chunks: ChunkRange[], gold: GoldSpan[]): number {
   let hits = 0;
-  for (const g of goldIds) if (topK.has(g)) hits++;
-  return hits / goldIds.length;
+  for (const span of gold) {
+    if (chunks.some((c) => covers(c, span))) hits++;
+  }
+  return hits;
 }
 
 /**
- * Reciprocal rank of the FIRST gold chunk in the retrieved list.
- * Returns 0 if none of the gold chunks appears in the top `maxRank`.
- * Returns NaN if there are no gold chunks.
+ * Fraction of gold spans covered by the top-K retrieved chunks.
+ * Returns NaN if there are no gold spans (caller should skip — out-of-scope).
+ */
+export function spanRecallAtK(retrieved: ChunkRange[], gold: GoldSpan[], k: number): number {
+  if (gold.length === 0) return Number.NaN;
+  return coveredCount(retrieved.slice(0, k), gold) / gold.length;
+}
+
+/**
+ * Reciprocal rank of the FIRST retrieved chunk that covers ANY gold span.
+ * Returns 0 if none of the retrieved chunks cover a gold span.
+ * Returns NaN if there are no gold spans.
  *
  * "MRR" is the mean of this across questions — computed by the aggregator,
  * not here. This function is the per-question building block.
  */
-export function reciprocalRank(
-  retrievedIds: number[],
-  goldIds: number[],
-  maxRank: number = Number.POSITIVE_INFINITY,
-): number {
-  if (goldIds.length === 0) return Number.NaN;
-  const goldSet = new Set(goldIds);
-  const limit = Math.min(retrievedIds.length, maxRank);
-  for (let i = 0; i < limit; i++) {
-    const id = retrievedIds[i];
-    if (id !== undefined && goldSet.has(id)) {
+export function spanReciprocalRank(retrieved: ChunkRange[], gold: GoldSpan[]): number {
+  if (gold.length === 0) return Number.NaN;
+  for (let i = 0; i < retrieved.length; i++) {
+    const chunk = retrieved[i];
+    if (chunk && gold.some((span) => covers(chunk, span))) {
       return 1 / (i + 1);
     }
   }

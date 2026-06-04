@@ -19,7 +19,7 @@ export type {
 export { createClaude } from './claude.ts';
 export type {
   ClaudeModel,
-  LMStudioEmbeddingModel,
+  LlamacppEmbeddingModel,
   LMStudioModel,
   OpenAIEmbeddingModel,
 } from './cost.ts';
@@ -29,12 +29,12 @@ export {
   addUsage,
   CLAUDE_MODELS,
   calculateAnthropicCost,
+  calculateLlamacppEmbeddingCost,
   calculateLMStudioCost,
-  calculateLMStudioEmbeddingCost,
   calculateOpenAIEmbeddingCost,
   EMBEDDING_DIMENSIONS,
   formatCost,
-  LM_STUDIO_EMBEDDING_MODELS,
+  LLAMACPP_EMBEDDING_MODELS,
   LM_STUDIO_MODELS,
   LMSTUDIO_PRICING,
   OPENAI_EMBEDDING_MODELS,
@@ -47,10 +47,12 @@ export type {
   EmbeddingProvider,
   EmbedOpts,
   EmbedResult,
-  LMStudioEmbedderConfig,
+  LlamacppEmbedderConfig,
   OpenAIEmbedderConfig,
 } from './embeddings.ts';
 export { createEmbedder } from './embeddings.ts';
+export type { LlamacppClient, LlamacppModel } from './llamacpp.ts';
+export { createLlamacpp, LLAMACPP_MODELS } from './llamacpp.ts';
 export type {
   LMStudioCallOpts,
   LMStudioChatOpts,
@@ -74,6 +76,8 @@ export type {
   PromptVars,
 } from './prompts.ts';
 export { abTest, definePrompt, formatAbTest, tag, tags } from './prompts.ts';
+export type { RerankConfig, RerankResponse, RerankResult } from './rerank.ts';
+export { rerank } from './rerank.ts';
 export type { AnthropicTool, OpenAITool } from './tools.ts';
 export { defineTool } from './tools.ts';
 export type { RequestInfo, ResponseInfo, ToolCallInfo, Tracer } from './tracer.ts';

@@ -22,7 +22,7 @@ pnpm dev mini-projects/06-embeddings-playground/index.ts
 
 Requirements:
 - Postgres + pgvector running: `docker compose up -d`
-- LM Studio on `localhost:1234` with `text-embedding-bge-m3` loaded
+- llama-swap on `localhost:8080` serving the `bge-m3` profile (`C:\llm`)
 
 The script is idempotent — re-running it deletes any prior `source='playground'` rows first.
 
@@ -36,7 +36,7 @@ The script is idempotent — re-running it deletes any prior `source='playground
 
 ## Things to play with
 
-- **Swap the embedder** to OpenAI: change `createEmbedder({ provider: 'lmstudio' })` to `createEmbedder({ provider: 'openai' })`, switch the INSERT/SELECT to the `embedding` (1536-dim) column. Re-run and compare top-1 similarities — usually within a few hundredths.
+- **Swap the embedder** to OpenAI: change `createEmbedder({ provider: 'llamacpp' })` to `createEmbedder({ provider: 'openai' })`, switch the INSERT/SELECT to the `embedding` (1536-dim) column. Re-run and compare top-1 similarities — usually within a few hundredths.
 - **Add an adversarial sample**: `{ text: 'Caesar salad has anchovies and parmesan.', cluster: 'modern' }`. Re-run the Caesar probe. Watch whether BGE-M3 correctly puts this lower than the actual Caesar-assassination samples (it should — but the similarity will be uncomfortably high because "Caesar" appears in both).
 - **Try a multilingual query**: `'¿Quién mató a Julio César?'` (Spanish for the same Caesar question). BGE-M3 is trained on 100+ languages, so the cross-language match should still surface the right cluster. text-embedding-3-small is much weaker at this.
 - **Add a synonym-style probe**: `'Roman political assemblies'` (the corpus uses "Senate"). This is exactly the **Synonym mismatch** category we'll evaluate in Module 5 — see whether BGE-M3 bridges the vocabulary gap on its own.

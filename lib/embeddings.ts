@@ -1,9 +1,11 @@
 /**
- * lib/embeddings.ts — unified embedding interface over OpenAI and LM Studio.
+ * lib/embeddings.ts — unified embedding interface over OpenAI and llama.cpp.
  *
- * Both backends speak the same `/v1/embeddings` HTTP API, so we use the same
- * `openai` SDK for both — only `baseURL`, `apiKey`, and `model` differ. This
- * file exists to centralize three concerns that are easy to get wrong:
+ * The local backend is bge-m3 served by llama.cpp via llama-swap (same model
+ * the corpus index was built with — vectors are bit-identical). Both backends
+ * speak the same `/v1/embeddings` HTTP API, so we use the same `openai` SDK for
+ * both — only `baseURL`, `apiKey`, and `model` differ. This file centralizes
+ * three concerns that are easy to get wrong:
  *
  *   1. **Dimension awareness.** pgvector columns are dimension-typed. A
  *      1024-dim vector cannot go into a VECTOR(1536) column, and the error
@@ -30,16 +32,16 @@
  *   const result   = await embedder.embed(['hello', 'world']);
  *   // → { vectors: number[][], usage, cost, latencyMs }
  *
- * Cost: OpenAI is metered ($0.02 / 1M tokens for -small). LM Studio is free.
+ * Cost: OpenAI is metered ($0.02 / 1M tokens for -small). llama.cpp is free.
  * Both report usage so the math stays uniform regardless of provider.
  */
 import OpenAI from 'openai';
 
 import {
-  calculateLMStudioEmbeddingCost,
+  calculateLlamacppEmbeddingCost,
   calculateOpenAIEmbeddingCost,
   EMBEDDING_DIMENSIONS,
-  LM_STUDIO_EMBEDDING_MODELS,
+  LLAMACPP_EMBEDDING_MODELS,
   OPENAI_EMBEDDING_MODELS,
 } from './cost.ts';
 import { noopTracer, safeCall, type Tracer } from './tracer.ts';
@@ -49,14 +51,14 @@ import type { Cost } from './types.ts';
 // Configuration
 // ============================================================================
 
-export type EmbeddingProvider = 'openai' | 'lmstudio';
+export type EmbeddingProvider = 'openai' | 'llamacpp';
 
 interface BaseEmbedderConfig {
   /**
    * Default model identifier for this provider. Defaults:
    *   openai   → text-embedding-3-small
-   *   lmstudio → text-embedding-bge-m3
-   * Make sure the model is actually loaded in LM Studio before calling.
+   *   llamacpp → bge-m3
+   * The llama.cpp model name must match a profile in the llama-swap config.
    */
   defaultModel?: string;
   /**
@@ -68,7 +70,7 @@ interface BaseEmbedderConfig {
   dimension?: number;
   /**
    * Maximum inputs per API call. The wrapper splits larger calls into
-   * sequential sub-calls. Defaults: 100 (openai), 32 (lmstudio — local
+   * sequential sub-calls. Defaults: 100 (openai), 32 (llamacpp — local
    * inference is memory-constrained).
    */
   batchSize?: number;
@@ -81,13 +83,16 @@ export interface OpenAIEmbedderConfig extends BaseEmbedderConfig {
   apiKey?: string;
 }
 
-export interface LMStudioEmbedderConfig extends BaseEmbedderConfig {
-  provider: 'lmstudio';
-  /** Defaults to LM_STUDIO_BASE_URL env var or http://localhost:1234/v1. */
+export interface LlamacppEmbedderConfig extends BaseEmbedderConfig {
+  provider: 'llamacpp';
+  /**
+   * llama-swap root URL (no trailing /v1). Defaults to LLAMA_SWAP_BASE_URL env
+   * var or http://127.0.0.1:8080. The factory appends /v1 for the OpenAI SDK.
+   */
   baseURL?: string;
 }
 
-export type EmbedderConfig = OpenAIEmbedderConfig | LMStudioEmbedderConfig;
+export type EmbedderConfig = OpenAIEmbedderConfig | LlamacppEmbedderConfig;
 
 export interface EmbedOpts {
   /** Per-call model override. Falls back to the embedder's defaultModel. */
@@ -155,14 +160,15 @@ export function createEmbedder(config: EmbedderConfig): Embedder {
     batchSize = config.batchSize ?? 100;
     calculateCost = calculateOpenAIEmbeddingCost;
   } else {
+    const root = config.baseURL ?? process.env.LLAMA_SWAP_BASE_URL ?? 'http://127.0.0.1:8080';
     sdk = new OpenAI({
-      baseURL: config.baseURL ?? process.env.LM_STUDIO_BASE_URL ?? 'http://localhost:1234/v1',
-      // LM Studio ignores API keys but the SDK requires SOMETHING.
-      apiKey: 'lm-studio',
+      baseURL: `${root}/v1`,
+      // llama.cpp ignores API keys but the SDK requires SOMETHING.
+      apiKey: 'llama-cpp',
     });
-    model = config.defaultModel ?? LM_STUDIO_EMBEDDING_MODELS.bgeM3;
+    model = config.defaultModel ?? LLAMACPP_EMBEDDING_MODELS.bgeM3;
     batchSize = config.batchSize ?? 32;
-    calculateCost = (tokens) => calculateLMStudioEmbeddingCost(tokens);
+    calculateCost = (tokens) => calculateLlamacppEmbeddingCost(tokens);
   }
 
   // Mutable so we can populate after the first response for unknown models.
@@ -207,11 +213,11 @@ export function createEmbedder(config: EmbedderConfig): Embedder {
           input: batch,
           // Pin to 'float' explicitly. The OpenAI SDK v6+ defaults to 'base64'
           // for wire efficiency and decodes transparently for OpenAI proper —
-          // but LM Studio's base64 encoding does NOT round-trip through the
-          // SDK's decoder. The visible symptom: a 1024-dim BGE-M3 vector
-          // comes back as a 256-float array of zeros. Forcing 'float' returns
-          // plain JSON arrays of floats from both backends, slightly more
-          // verbose on the wire but provider-agnostic and correct.
+          // but local OpenAI-compatible servers' base64 encoding does NOT
+          // round-trip through the SDK's decoder. The visible symptom: a
+          // 1024-dim BGE-M3 vector comes back as a 256-float array of zeros.
+          // Forcing 'float' returns plain JSON arrays of floats from both
+          // backends, slightly more verbose on the wire but correct.
           encoding_format: 'float',
         });
 
@@ -273,7 +279,7 @@ export function createEmbedder(config: EmbedderConfig): Embedder {
   return {
     get label() {
       const dimStr = dimension !== undefined ? `, ${dimension}d` : '';
-      const providerLabel = provider === 'openai' ? 'OpenAI' : 'LM Studio';
+      const providerLabel = provider === 'openai' ? 'OpenAI' : 'llama.cpp';
       return `${providerLabel} (${model}${dimStr})`;
     },
     provider,

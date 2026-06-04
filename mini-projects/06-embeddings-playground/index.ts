@@ -19,8 +19,7 @@
  *
  * Requirements:
  *   - Postgres + pgvector running:        docker compose up -d
- *   - LM Studio running on localhost:1234 with BGE-M3 loaded
- *     (model id: text-embedding-bge-m3)
+ *   - llama-swap on :8080 serving the `bge-m3` profile (C:\llm)
  *
  * Idempotent: clears `chunks` rows where source='playground' at start.
  */
@@ -68,123 +67,414 @@ interface Sample {
 
 const samples: Sample[] = [
   // === caesar (12) ===
-  { cluster: 'caesar', text: 'Julius Caesar crossed the Rubicon in 49 BC, igniting civil war against Pompey.' },
-  { cluster: 'caesar', text: 'Brutus and a group of senators assassinated Caesar on the Ides of March, 44 BC.' },
-  { cluster: 'caesar', text: 'Caesar defeated Pompey decisively at the Battle of Pharsalus in 48 BC.' },
-  { cluster: 'caesar', text: 'After Caesar fell, his great-nephew Octavian inherited his political legacy.' },
-  { cluster: 'caesar', text: 'Caesar wrote commentaries on the Gallic War describing his conquest of Gaul.' },
-  { cluster: 'caesar', text: 'The Senate granted Caesar the title dictator perpetuo shortly before his death.' },
+  {
+    cluster: 'caesar',
+    text: 'Julius Caesar crossed the Rubicon in 49 BC, igniting civil war against Pompey.',
+  },
+  {
+    cluster: 'caesar',
+    text: 'Brutus and a group of senators assassinated Caesar on the Ides of March, 44 BC.',
+  },
+  {
+    cluster: 'caesar',
+    text: 'Caesar defeated Pompey decisively at the Battle of Pharsalus in 48 BC.',
+  },
+  {
+    cluster: 'caesar',
+    text: 'After Caesar fell, his great-nephew Octavian inherited his political legacy.',
+  },
+  {
+    cluster: 'caesar',
+    text: 'Caesar wrote commentaries on the Gallic War describing his conquest of Gaul.',
+  },
+  {
+    cluster: 'caesar',
+    text: 'The Senate granted Caesar the title dictator perpetuo shortly before his death.',
+  },
   { cluster: 'caesar', text: 'Caesar reformed the Roman calendar, introducing the Julian system.' },
-  { cluster: 'caesar', text: 'Mark Antony delivered the famous funeral oration after Caesar was killed.' },
-  { cluster: 'caesar', text: "Cleopatra bore Caesar a son named Caesarion during his time in Egypt." },
-  { cluster: 'caesar', text: 'Caesar pardoned many former enemies after winning the civil war, a policy called clementia.' },
-  { cluster: 'caesar', text: "Caesar's final words to Brutus, according to Suetonius, may have been \"Et tu, Brute?\"" },
-  { cluster: 'caesar', text: 'The Battle of Alesia saw Caesar besiege Vercingetorix and end Gallic resistance.' },
+  {
+    cluster: 'caesar',
+    text: 'Mark Antony delivered the famous funeral oration after Caesar was killed.',
+  },
+  {
+    cluster: 'caesar',
+    text: 'Cleopatra bore Caesar a son named Caesarion during his time in Egypt.',
+  },
+  {
+    cluster: 'caesar',
+    text: 'Caesar pardoned many former enemies after winning the civil war, a policy called clementia.',
+  },
+  {
+    cluster: 'caesar',
+    text: 'Caesar\'s final words to Brutus, according to Suetonius, may have been "Et tu, Brute?"',
+  },
+  {
+    cluster: 'caesar',
+    text: 'The Battle of Alesia saw Caesar besiege Vercingetorix and end Gallic resistance.',
+  },
 
   // === republic (12) ===
-  { cluster: 'republic', text: 'The Roman Senate held primary legislative power throughout the Republic.' },
-  { cluster: 'republic', text: 'Two consuls were elected annually and held imperium over the army and state.' },
-  { cluster: 'republic', text: 'The Conflict of the Orders gave plebeians equal political rights with patricians.' },
-  { cluster: 'republic', text: 'Cicero served as consul in 63 BC and exposed the Catiline conspiracy.' },
+  {
+    cluster: 'republic',
+    text: 'The Roman Senate held primary legislative power throughout the Republic.',
+  },
+  {
+    cluster: 'republic',
+    text: 'Two consuls were elected annually and held imperium over the army and state.',
+  },
+  {
+    cluster: 'republic',
+    text: 'The Conflict of the Orders gave plebeians equal political rights with patricians.',
+  },
+  {
+    cluster: 'republic',
+    text: 'Cicero served as consul in 63 BC and exposed the Catiline conspiracy.',
+  },
   { cluster: 'republic', text: 'The Twelve Tables formed the earliest written code of Roman law.' },
-  { cluster: 'republic', text: 'Tribunes of the plebs could veto actions of magistrates to protect ordinary citizens.' },
-  { cluster: 'republic', text: 'The Gracchi brothers tried to redistribute public land to landless veterans.' },
-  { cluster: 'republic', text: 'Sulla marched on Rome and was appointed dictator to reform the constitution.' },
-  { cluster: 'republic', text: 'The cursus honorum was the sequential ladder of public offices ambitious Romans climbed.' },
-  { cluster: 'republic', text: 'Censors counted citizens and assigned them to property classes for voting and taxation.' },
-  { cluster: 'republic', text: 'Roman religion was tightly woven into public life through state-appointed priests.' },
-  { cluster: 'republic', text: 'The First Triumvirate informally united Pompey, Crassus, and Caesar against Senate opposition.' },
+  {
+    cluster: 'republic',
+    text: 'Tribunes of the plebs could veto actions of magistrates to protect ordinary citizens.',
+  },
+  {
+    cluster: 'republic',
+    text: 'The Gracchi brothers tried to redistribute public land to landless veterans.',
+  },
+  {
+    cluster: 'republic',
+    text: 'Sulla marched on Rome and was appointed dictator to reform the constitution.',
+  },
+  {
+    cluster: 'republic',
+    text: 'The cursus honorum was the sequential ladder of public offices ambitious Romans climbed.',
+  },
+  {
+    cluster: 'republic',
+    text: 'Censors counted citizens and assigned them to property classes for voting and taxation.',
+  },
+  {
+    cluster: 'republic',
+    text: 'Roman religion was tightly woven into public life through state-appointed priests.',
+  },
+  {
+    cluster: 'republic',
+    text: 'The First Triumvirate informally united Pompey, Crassus, and Caesar against Senate opposition.',
+  },
 
   // === empire (12) ===
-  { cluster: 'empire', text: 'Augustus became the first Roman emperor after defeating Antony and Cleopatra at Actium.' },
-  { cluster: 'empire', text: 'Tiberius retreated to Capri and let Sejanus run the empire in his absence.' },
-  { cluster: 'empire', text: 'Caligula reportedly made his horse Incitatus a senator, illustrating his erratic reign.' },
+  {
+    cluster: 'empire',
+    text: 'Augustus became the first Roman emperor after defeating Antony and Cleopatra at Actium.',
+  },
+  {
+    cluster: 'empire',
+    text: 'Tiberius retreated to Capri and let Sejanus run the empire in his absence.',
+  },
+  {
+    cluster: 'empire',
+    text: 'Caligula reportedly made his horse Incitatus a senator, illustrating his erratic reign.',
+  },
   { cluster: 'empire', text: 'Claudius oversaw the Roman invasion of Britain in 43 AD.' },
-  { cluster: 'empire', text: 'Nero was blamed for the Great Fire of Rome in 64 AD and persecuted early Christians.' },
-  { cluster: 'empire', text: 'The Year of the Four Emperors followed Nero\'s death and ended with Vespasian on the throne.' },
-  { cluster: 'empire', text: 'Marcus Aurelius wrote the Meditations while commanding legions on the Danube frontier.' },
-  { cluster: 'empire', text: 'Diocletian split the empire into the Tetrarchy to make it governable.' },
-  { cluster: 'empire', text: 'Constantine legalized Christianity through the Edict of Milan in 313 AD.' },
-  { cluster: 'empire', text: 'The Praetorian Guard often decided imperial successions through coup or assassination.' },
-  { cluster: 'empire', text: 'The Western Roman Empire fell in 476 AD when Odoacer deposed Romulus Augustulus.' },
-  { cluster: 'empire', text: "The emperor Hadrian built a wall across northern Britain to mark the empire's edge." },
+  {
+    cluster: 'empire',
+    text: 'Nero was blamed for the Great Fire of Rome in 64 AD and persecuted early Christians.',
+  },
+  {
+    cluster: 'empire',
+    text: "The Year of the Four Emperors followed Nero's death and ended with Vespasian on the throne.",
+  },
+  {
+    cluster: 'empire',
+    text: 'Marcus Aurelius wrote the Meditations while commanding legions on the Danube frontier.',
+  },
+  {
+    cluster: 'empire',
+    text: 'Diocletian split the empire into the Tetrarchy to make it governable.',
+  },
+  {
+    cluster: 'empire',
+    text: 'Constantine legalized Christianity through the Edict of Milan in 313 AD.',
+  },
+  {
+    cluster: 'empire',
+    text: 'The Praetorian Guard often decided imperial successions through coup or assassination.',
+  },
+  {
+    cluster: 'empire',
+    text: 'The Western Roman Empire fell in 476 AD when Odoacer deposed Romulus Augustulus.',
+  },
+  {
+    cluster: 'empire',
+    text: "The emperor Hadrian built a wall across northern Britain to mark the empire's edge.",
+  },
 
   // === military (12) ===
-  { cluster: 'military', text: 'The Roman legion was organized into cohorts and centuries with strict discipline.' },
-  { cluster: 'military', text: 'Legionaries built fortified camps every night during a campaign, regardless of distance.' },
-  { cluster: 'military', text: 'The pilum was a heavy javelin designed to bend on impact and disable enemy shields.' },
-  { cluster: 'military', text: 'Hannibal led Carthaginian forces across the Alps during the Second Punic War.' },
-  { cluster: 'military', text: 'Scipio Africanus defeated Hannibal at the Battle of Zama in 202 BC.' },
-  { cluster: 'military', text: 'The Battle of Cannae was one of the worst defeats in Roman military history.' },
-  { cluster: 'military', text: 'Roman siege engines included the testudo formation, battering rams, and siege towers.' },
-  { cluster: 'military', text: 'Trajan\'s legions conquered Dacia, bringing enormous gold reserves into the empire.' },
-  { cluster: 'military', text: 'The Teutoburg Forest ambush destroyed three legions under Varus in 9 AD.' },
-  { cluster: 'military', text: 'Marius reformed the legions by accepting landless recruits and standardizing equipment.' },
-  { cluster: 'military', text: 'Roman cavalry was historically weak; auxiliaries filled the gap on the wings.' },
-  { cluster: 'military', text: 'The Roman navy crushed Carthaginian fleets using the corvus boarding bridge.' },
+  {
+    cluster: 'military',
+    text: 'The Roman legion was organized into cohorts and centuries with strict discipline.',
+  },
+  {
+    cluster: 'military',
+    text: 'Legionaries built fortified camps every night during a campaign, regardless of distance.',
+  },
+  {
+    cluster: 'military',
+    text: 'The pilum was a heavy javelin designed to bend on impact and disable enemy shields.',
+  },
+  {
+    cluster: 'military',
+    text: 'Hannibal led Carthaginian forces across the Alps during the Second Punic War.',
+  },
+  {
+    cluster: 'military',
+    text: 'Scipio Africanus defeated Hannibal at the Battle of Zama in 202 BC.',
+  },
+  {
+    cluster: 'military',
+    text: 'The Battle of Cannae was one of the worst defeats in Roman military history.',
+  },
+  {
+    cluster: 'military',
+    text: 'Roman siege engines included the testudo formation, battering rams, and siege towers.',
+  },
+  {
+    cluster: 'military',
+    text: "Trajan's legions conquered Dacia, bringing enormous gold reserves into the empire.",
+  },
+  {
+    cluster: 'military',
+    text: 'The Teutoburg Forest ambush destroyed three legions under Varus in 9 AD.',
+  },
+  {
+    cluster: 'military',
+    text: 'Marius reformed the legions by accepting landless recruits and standardizing equipment.',
+  },
+  {
+    cluster: 'military',
+    text: 'Roman cavalry was historically weak; auxiliaries filled the gap on the wings.',
+  },
+  {
+    cluster: 'military',
+    text: 'The Roman navy crushed Carthaginian fleets using the corvus boarding bridge.',
+  },
 
   // === ancient_other (15) — Greek, Egyptian, Persian — near-misses for "ancient" ===
-  { cluster: 'ancient_other', text: 'Socrates was sentenced to death by an Athenian jury for corrupting the youth.' },
-  { cluster: 'ancient_other', text: 'Plato founded the Academy in Athens, the first institution of higher learning in the West.' },
-  { cluster: 'ancient_other', text: 'Alexander the Great conquered the Persian Empire by the age of thirty.' },
-  { cluster: 'ancient_other', text: 'The Athenian democracy let male citizens vote directly on policy in the assembly.' },
-  { cluster: 'ancient_other', text: 'Spartan warriors trained from childhood in the agoge, an austere military education.' },
-  { cluster: 'ancient_other', text: 'The Battle of Thermopylae saw three hundred Spartans hold off a vast Persian army.' },
-  { cluster: 'ancient_other', text: 'The Library of Alexandria collected scrolls from across the Mediterranean world.' },
-  { cluster: 'ancient_other', text: 'Cleopatra was the last active pharaoh of the Ptolemaic dynasty of Egypt.' },
-  { cluster: 'ancient_other', text: 'The pyramids at Giza were built as tombs for the Old Kingdom pharaohs.' },
-  { cluster: 'ancient_other', text: 'Hieroglyphs were deciphered using the Rosetta Stone in the early 19th century.' },
-  { cluster: 'ancient_other', text: 'Cyrus the Great founded the Achaemenid Persian Empire in the sixth century BC.' },
-  { cluster: 'ancient_other', text: 'Darius and Xerxes led massive Persian invasions of Greece that ultimately failed.' },
-  { cluster: 'ancient_other', text: 'Aristotle tutored the young Alexander before his conquests began.' },
-  { cluster: 'ancient_other', text: 'The Iliad and Odyssey are attributed to the Greek poet Homer.' },
-  { cluster: 'ancient_other', text: 'Pythagoras founded a religious-philosophical school focused on mathematics and number mysticism.' },
+  {
+    cluster: 'ancient_other',
+    text: 'Socrates was sentenced to death by an Athenian jury for corrupting the youth.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'Plato founded the Academy in Athens, the first institution of higher learning in the West.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'Alexander the Great conquered the Persian Empire by the age of thirty.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'The Athenian democracy let male citizens vote directly on policy in the assembly.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'Spartan warriors trained from childhood in the agoge, an austere military education.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'The Battle of Thermopylae saw three hundred Spartans hold off a vast Persian army.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'The Library of Alexandria collected scrolls from across the Mediterranean world.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'Cleopatra was the last active pharaoh of the Ptolemaic dynasty of Egypt.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'The pyramids at Giza were built as tombs for the Old Kingdom pharaohs.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'Hieroglyphs were deciphered using the Rosetta Stone in the early 19th century.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'Cyrus the Great founded the Achaemenid Persian Empire in the sixth century BC.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'Darius and Xerxes led massive Persian invasions of Greece that ultimately failed.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'Aristotle tutored the young Alexander before his conquests began.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'The Iliad and Odyssey are attributed to the Greek poet Homer.',
+  },
+  {
+    cluster: 'ancient_other',
+    text: 'Pythagoras founded a religious-philosophical school focused on mathematics and number mysticism.',
+  },
 
   // === non_ancient (10) — medieval + modern history to test temporal discrimination ===
-  { cluster: 'non_ancient', text: 'Charlemagne was crowned Emperor of the Romans by the Pope on Christmas Day, 800 AD.' },
-  { cluster: 'non_ancient', text: 'The Magna Carta limited the powers of the English king in 1215.' },
-  { cluster: 'non_ancient', text: 'The Black Death killed perhaps a third of Europe\'s population in the 1340s.' },
-  { cluster: 'non_ancient', text: 'Napoleon crowned himself Emperor of the French in Notre-Dame in 1804.' },
-  { cluster: 'non_ancient', text: 'The American Revolutionary War ended with the Treaty of Paris in 1783.' },
-  { cluster: 'non_ancient', text: 'World War I began after the assassination of Archduke Franz Ferdinand in Sarajevo.' },
-  { cluster: 'non_ancient', text: 'The Berlin Wall fell in November 1989, signaling the end of the Cold War in Europe.' },
-  { cluster: 'non_ancient', text: 'The French Revolution overthrew the monarchy and established a republic in the 1790s.' },
-  { cluster: 'non_ancient', text: 'Gutenberg\'s printing press transformed European literacy in the mid-15th century.' },
-  { cluster: 'non_ancient', text: 'The signing of the Declaration of Independence took place in Philadelphia in 1776.' },
+  {
+    cluster: 'non_ancient',
+    text: 'Charlemagne was crowned Emperor of the Romans by the Pope on Christmas Day, 800 AD.',
+  },
+  {
+    cluster: 'non_ancient',
+    text: 'The Magna Carta limited the powers of the English king in 1215.',
+  },
+  {
+    cluster: 'non_ancient',
+    text: "The Black Death killed perhaps a third of Europe's population in the 1340s.",
+  },
+  {
+    cluster: 'non_ancient',
+    text: 'Napoleon crowned himself Emperor of the French in Notre-Dame in 1804.',
+  },
+  {
+    cluster: 'non_ancient',
+    text: 'The American Revolutionary War ended with the Treaty of Paris in 1783.',
+  },
+  {
+    cluster: 'non_ancient',
+    text: 'World War I began after the assassination of Archduke Franz Ferdinand in Sarajevo.',
+  },
+  {
+    cluster: 'non_ancient',
+    text: 'The Berlin Wall fell in November 1989, signaling the end of the Cold War in Europe.',
+  },
+  {
+    cluster: 'non_ancient',
+    text: 'The French Revolution overthrew the monarchy and established a republic in the 1790s.',
+  },
+  {
+    cluster: 'non_ancient',
+    text: "Gutenberg's printing press transformed European literacy in the mid-15th century.",
+  },
+  {
+    cluster: 'non_ancient',
+    text: 'The signing of the Declaration of Independence took place in Philadelphia in 1776.',
+  },
 
   // === modern_life (15) — everyday modern, the control group ===
-  { cluster: 'modern_life', text: 'I had a margherita pizza for lunch and the basil was incredibly fresh.' },
-  { cluster: 'modern_life', text: 'The weather forecast predicts heavy rain across the city tomorrow afternoon.' },
-  { cluster: 'modern_life', text: 'My laptop battery only lasts about four hours these days, it might need replacing.' },
-  { cluster: 'modern_life', text: 'The new electric cars charge significantly faster than last year\'s models.' },
-  { cluster: 'modern_life', text: 'She brewed a strong espresso and sat down to read the morning paper.' },
-  { cluster: 'modern_life', text: 'Streaming services have largely replaced cable television in most American households.' },
-  { cluster: 'modern_life', text: 'The marathon runners gathered at the starting line just before sunrise.' },
-  { cluster: 'modern_life', text: 'Our flight was delayed three hours due to thunderstorms over the airport.' },
-  { cluster: 'modern_life', text: 'A good pair of running shoes can prevent most common joint injuries.' },
-  { cluster: 'modern_life', text: 'The local farmers market has the best peaches I\'ve had in years.' },
-  { cluster: 'modern_life', text: 'JavaScript and Python remain the two most popular programming languages for beginners.' },
-  { cluster: 'modern_life', text: 'My dog barks at every delivery driver no matter how many times they visit.' },
-  { cluster: 'modern_life', text: 'The new coffee shop downtown has surprisingly good pastries and free Wi-Fi.' },
-  { cluster: 'modern_life', text: 'Most modern smartphones can shoot high-quality video without any external equipment.' },
-  { cluster: 'modern_life', text: 'I finally finished assembling that bookshelf and only had two screws left over.' },
+  {
+    cluster: 'modern_life',
+    text: 'I had a margherita pizza for lunch and the basil was incredibly fresh.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'The weather forecast predicts heavy rain across the city tomorrow afternoon.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'My laptop battery only lasts about four hours these days, it might need replacing.',
+  },
+  {
+    cluster: 'modern_life',
+    text: "The new electric cars charge significantly faster than last year's models.",
+  },
+  {
+    cluster: 'modern_life',
+    text: 'She brewed a strong espresso and sat down to read the morning paper.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'Streaming services have largely replaced cable television in most American households.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'The marathon runners gathered at the starting line just before sunrise.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'Our flight was delayed three hours due to thunderstorms over the airport.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'A good pair of running shoes can prevent most common joint injuries.',
+  },
+  {
+    cluster: 'modern_life',
+    text: "The local farmers market has the best peaches I've had in years.",
+  },
+  {
+    cluster: 'modern_life',
+    text: 'JavaScript and Python remain the two most popular programming languages for beginners.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'My dog barks at every delivery driver no matter how many times they visit.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'The new coffee shop downtown has surprisingly good pastries and free Wi-Fi.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'Most modern smartphones can shoot high-quality video without any external equipment.',
+  },
+  {
+    cluster: 'modern_life',
+    text: 'I finally finished assembling that bookshelf and only had two screws left over.',
+  },
 
   // === trap (12) — the headline feature ===
   // Keyword traps: words that look Roman but aren't (Caesar salad, Caesarean section)
-  { cluster: 'trap', text: 'The Caesar salad was invented in Tijuana in 1924 by restaurateur Caesar Cardini.' },
-  { cluster: 'trap', text: 'A classic Caesar dressing combines anchovies, garlic, parmesan, lemon, and egg yolk.' },
-  { cluster: 'trap', text: 'A Caesarean section is a surgical delivery used when vaginal birth would be risky.' },
+  {
+    cluster: 'trap',
+    text: 'The Caesar salad was invented in Tijuana in 1924 by restaurateur Caesar Cardini.',
+  },
+  {
+    cluster: 'trap',
+    text: 'A classic Caesar dressing combines anchovies, garlic, parmesan, lemon, and egg yolk.',
+  },
+  {
+    cluster: 'trap',
+    text: 'A Caesarean section is a surgical delivery used when vaginal birth would be risky.',
+  },
   // Homonym traps: same name, different person/thing
-  { cluster: 'trap', text: 'Hannibal Lecter is a fictional cannibal psychiatrist created by Thomas Harris.' },
-  { cluster: 'trap', text: 'Brutus is also the name of a popular brand of work boots sold across Europe.' },
-  { cluster: 'trap', text: 'Pompey is a coastal city in southern England, known for its naval dockyards.' },
-  { cluster: 'trap', text: 'Trajan is the name of a widely-used typeface designed by Carol Twombly in 1989.' },
+  {
+    cluster: 'trap',
+    text: 'Hannibal Lecter is a fictional cannibal psychiatrist created by Thomas Harris.',
+  },
+  {
+    cluster: 'trap',
+    text: 'Brutus is also the name of a popular brand of work boots sold across Europe.',
+  },
+  {
+    cluster: 'trap',
+    text: 'Pompey is a coastal city in southern England, known for its naval dockyards.',
+  },
+  {
+    cluster: 'trap',
+    text: 'Trajan is the name of a widely-used typeface designed by Carol Twombly in 1989.',
+  },
   // Metaphorical / modern uses of Roman terms
-  { cluster: 'trap', text: 'The startup won the deal but burned so much cash it was a Pyrrhic victory.' },
-  { cluster: 'trap', text: 'The journalist crossed her own Rubicon when she published the leaked source code.' },
-  { cluster: 'trap', text: 'After the merger, the new CEO\'s first hundred days felt like a corporate triumph.' },
-  { cluster: 'trap', text: 'The phrase \"Et tu, Brute?\" is now used jokingly when a friend turns on you.' },
-  { cluster: 'trap', text: 'The Praetorian was a 2008 video game about a Roman soldier (in name only — actually a shooter).' },
+  {
+    cluster: 'trap',
+    text: 'The startup won the deal but burned so much cash it was a Pyrrhic victory.',
+  },
+  {
+    cluster: 'trap',
+    text: 'The journalist crossed her own Rubicon when she published the leaked source code.',
+  },
+  {
+    cluster: 'trap',
+    text: "After the merger, the new CEO's first hundred days felt like a corporate triumph.",
+  },
+  {
+    cluster: 'trap',
+    text: 'The phrase "Et tu, Brute?" is now used jokingly when a friend turns on you.',
+  },
+  {
+    cluster: 'trap',
+    text: 'The Praetorian was a 2008 video game about a Roman soldier (in name only — actually a shooter).',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -216,7 +506,7 @@ const probes: Probe[] = [
   {
     query: 'Which Roman emperor was the most cruel?',
     expectedClusters: ['empire'],
-    note: 'Should pull Nero, Caligula. Watch for caesar leakage — Caesar wasn\'t an emperor.',
+    note: "Should pull Nero, Caligula. Watch for caesar leakage — Caesar wasn't an emperor.",
   },
   {
     query: 'Famous battles and military tactics of antiquity',
@@ -261,7 +551,7 @@ const probes: Probe[] = [
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
-const embedder: Embedder = createEmbedder({ provider: 'lmstudio' });
+const embedder: Embedder = createEmbedder({ provider: 'llamacpp' });
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {

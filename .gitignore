@@ -12,6 +12,9 @@ dist/
 corpus/*
 !corpus/.gitkeep
 
+# Infinity model weights cache (bge-m3 / bge-reranker-v2-m3, downloaded locally)
+.hf-cache/
+
 # eval run outputs
 evals/results/
 

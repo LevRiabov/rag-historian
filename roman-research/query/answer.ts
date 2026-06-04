@@ -1,9 +1,9 @@
 /**
  * roman-research/query/answer.ts — format retrieved chunks into a prompt
- * and generate a cited answer with either LM Studio (local, free, default)
+ * and generate a cited answer with either llama.cpp (local, free, default)
  * or Claude (paid, higher quality, opt-in).
  *
- * Why LM Studio by default: the user iterates on prompts and retrieval
+ * Why llama.cpp by default: the user iterates on prompts and retrieval
  * configs many times during Modules 4–6. Local generation is free and
  * fast on the 5070 Ti, so cost doesn't gate experimentation. When the
  * eval set in Module 5 compares quality, we'll re-run with Claude.
@@ -28,9 +28,9 @@ import {
   CLAUDE_MODELS,
   type ClaudeModel,
   createClaude,
-  createLocalLLM,
+  createLlamacpp,
   formatCost,
-  LM_STUDIO_MODELS,
+  LLAMACPP_MODELS,
 } from '../../lib/index.ts';
 import { formatYear, type RetrievedChunk } from './retrieve.ts';
 
@@ -44,11 +44,11 @@ Rules:
 5. Be concise. Prefer two or three substantive paragraphs over a long survey.`;
 
 /** LLM choices: local (free, default) or Claude (paid). */
-export type LLMChoice = 'lmstudio' | 'claude-sonnet' | 'claude-haiku' | 'claude-opus';
+export type LLMChoice = 'llamacpp' | 'claude-sonnet' | 'claude-haiku' | 'claude-opus';
 
-export const DEFAULT_LLM: LLMChoice = 'lmstudio';
+export const DEFAULT_LLM: LLMChoice = 'llamacpp';
 
-const CLAUDE_MODEL_BY_CHOICE: Record<Exclude<LLMChoice, 'lmstudio'>, ClaudeModel> = {
+const CLAUDE_MODEL_BY_CHOICE: Record<Exclude<LLMChoice, 'llamacpp'>, ClaudeModel> = {
   'claude-sonnet': CLAUDE_MODELS.sonnet,
   'claude-haiku': CLAUDE_MODELS.haiku,
   'claude-opus': CLAUDE_MODELS.opus,
@@ -56,10 +56,11 @@ const CLAUDE_MODEL_BY_CHOICE: Record<Exclude<LLMChoice, 'lmstudio'>, ClaudeModel
 
 export interface AnswerOptions {
   llm?: LLMChoice;
-  /** Override the LM Studio model identifier (only used when llm='lmstudio').
-   *  Defaults to qwen3.5-9b (dense, strong at extracting from chunks).
-   *  Pass any string LM Studio recognizes (e.g. 'openai/gpt-oss-20b'). */
-  lmStudioModel?: string;
+  /** Override the llama-swap model profile (only used when llm='llamacpp').
+   *  Defaults to qwen-9b-16k (dense 9B, thinking off, strong at extracting
+   *  from chunks). Pass any profile name in the llama-swap config, e.g.
+   *  'qwen-9b-32k' for a larger context. */
+  llamacppModel?: string;
 }
 
 export interface AnswerResult {
@@ -70,7 +71,7 @@ export interface AnswerResult {
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
-  /** Pretty label like "Claude (claude-sonnet-4-6)" or "LM Studio (openai/gpt-oss-20b)". */
+  /** Pretty label like "Claude (claude-sonnet-4-6)" or "llama.cpp (qwen-9b-16k)". */
   llmLabel: string;
 }
 
@@ -105,25 +106,20 @@ export async function answerQuestion(
   const userMessage = formatUserMessage(question, chunks);
   const t0 = Date.now();
 
-  if (llm === 'lmstudio') {
-    // createLocalLLM is env-driven (LOCAL_LLM_PROVIDER). Defaults to LM Studio.
-    // Default model: qwen3.5-9b — dense 9B is more consistent at extracting
-    // facts from multi-chunk context than gpt-oss-20b (which is MoE with
-    // only 3.6B active params and tends to skim). Caller can override via
-    // options.lmStudioModel to compare models.
-    const local = createLocalLLM({
-      lmstudio: { defaultModel: options.lmStudioModel ?? LM_STUDIO_MODELS.qwen3_5_9b },
-    });
-    const result = await local.client.chat({
+  if (llm === 'llamacpp') {
+    // Local generation via llama.cpp (llama-swap). Default profile qwen-9b-16k:
+    // dense 9B is more consistent at extracting facts from multi-chunk context
+    // than a sparse MoE that tends to skim. Thinking is OFF — but that's baked
+    // into the profile (`--reasoning off` in the llama-swap config), NOT a
+    // per-request flag, so we don't pass `reasoning` here. (qwen3 defaults to
+    // thinking on, which writes a long CoT that exhausts the token budget
+    // before producing the answer; the profile suppresses it.) Override the
+    // profile via options.llamacppModel.
+    const model = options.llamacppModel ?? LLAMACPP_MODELS.qwen9b16k;
+    const client = createLlamacpp({ defaultModel: model });
+    const result = await client.chat({
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
-      // Disable thinking. qwen3 family defaults to on, which writes a long
-      // chain of thought into `message.reasoning` and often exhausts the
-      // max_tokens budget before producing any final `message.content`.
-      // For RAG-answer generation we want the direct answer, not the
-      // intermediate reasoning. (gpt-oss-20b uses leveled reasoning_effort
-      // and ignores this flag; passing false is a no-op there.)
-      reasoning: false,
     });
     return {
       text: result.text,
@@ -132,7 +128,7 @@ export async function answerQuestion(
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
       latencyMs: Date.now() - t0,
-      llmLabel: local.label,
+      llmLabel: `llama.cpp (${model})`,
     };
   }
 

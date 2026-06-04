@@ -40,26 +40,23 @@ import {
 // — instead of a real array. We accept either shape rather than fail-and-retry.
 // ============================================================================
 
-const claimsField = z.preprocess(
-  (val) => {
-    if (Array.isArray(val)) return val;
-    if (typeof val === 'string') {
-      const trimmed = val.trim();
-      if (trimmed.length === 0 || /^(none|n\/a)$/i.test(trimmed)) return [];
-      // Try to parse as JSON array first
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) return parsed.map((x) => String(x));
-      } catch {
-        // not JSON — fall through
-      }
-      // Last resort: wrap the whole string as one element
-      return [trimmed];
+const claimsField = z.preprocess((val) => {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.length === 0 || /^(none|n\/a)$/i.test(trimmed)) return [];
+    // Try to parse as JSON array first
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map((x) => String(x));
+    } catch {
+      // not JSON — fall through
     }
-    return [];
-  },
-  z.array(z.string()),
-);
+    // Last resort: wrap the whole string as one element
+    return [trimmed];
+  }
+  return [];
+}, z.array(z.string()));
 
 const FaithfulnessSchema = z.object({
   score: z.number().int().min(1).max(5),
@@ -111,7 +108,9 @@ async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
       if (attempt === MAX_JUDGE_RETRIES || !isTransient(err)) throw err;
       const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`    [${label}] transient error (${msg.slice(0, 80)}), retrying in ${delay}ms...`);
+      console.warn(
+        `    [${label}] transient error (${msg.slice(0, 80)}), retrying in ${delay}ms...`,
+      );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
@@ -136,9 +135,7 @@ export interface Judge {
     candidateAnswer: string,
   ): Promise<{ score: number; reasoning: string; missedFacts: string[]; costUSD: number }>;
 
-  refusal(
-    answerText: string,
-  ): Promise<{ didRefuse: boolean; reasoning: string; costUSD: number }>;
+  refusal(answerText: string): Promise<{ didRefuse: boolean; reasoning: string; costUSD: number }>;
 
   /** Pretty label, e.g. "Claude (claude-haiku-4-5-...)". */
   label: string;
@@ -218,10 +215,7 @@ export type RefusalClassification =
   | 'should-have-refused'
   | 'should-have-answered';
 
-export function classifyRefusal(
-  didRefuse: boolean,
-  shouldRefuse: boolean,
-): RefusalClassification {
+export function classifyRefusal(didRefuse: boolean, shouldRefuse: boolean): RefusalClassification {
   if (shouldRefuse && didRefuse) return 'correct-refused';
   if (!shouldRefuse && !didRefuse) return 'correct-answered';
   if (shouldRefuse && !didRefuse) return 'should-have-refused';
