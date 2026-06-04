@@ -188,6 +188,10 @@ export interface BatchResult {
     retrievalMode?: string;
     /** Reranker label or 'off' (Module 6.3). */
     rerank?: string;
+    /** HyDE label or 'off' (Module 6.5). */
+    hyde?: string;
+    /** Query-expansion label or 'off' (Module 6.5). */
+    expand?: string;
     topK: number;
     timestamp: string;
     /** Present when --generation was on. */

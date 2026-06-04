@@ -28,7 +28,9 @@ import pgvector from 'pgvector/pg';
 
 import { CLAUDE_MODELS, type ClaudeModel, type EmbeddingProvider } from '../lib/index.ts';
 import { answerQuestion, DEFAULT_LLM, type LLMChoice } from '../roman-research/query/answer.ts';
-import { expandToParents, retrieve } from '../roman-research/query/retrieve.ts';
+import { generateQueryVariations } from '../roman-research/query/expand.ts';
+import { generateHydeDoc } from '../roman-research/query/hyde.ts';
+import { expandToParents, retrieve, retrieveMultiQuery } from '../roman-research/query/retrieve.ts';
 import { classifyRefusal, createJudge } from './metrics/generation.ts';
 import {
   type ChunkRange,
@@ -87,6 +89,26 @@ const lexicalWeight = Number(flags['lexical-weight'] ?? '1');
 // many first-stage candidates get reranked (default 50).
 const rerankEnabled = flags.rerank !== undefined;
 const rerankPoolK = Number(flags['rerank-pool'] ?? '50');
+// --hyde: query rewriting via Hypothetical Document Embeddings (Module 6.5).
+// Generate a hypothetical answer with the local LLM and embed THAT for the
+// first-stage vector search (reranking/BM25 still use the raw question). Aimed
+// at the synthesis floor — abstract questions with no entity anchor.
+// --hyde-model overrides the llama-swap profile (default qwen-9b-16k).
+const hydeEnabled = flags.hyde !== undefined;
+const hydeModel = flags['hyde-model'] || undefined;
+// --hyde-concat: embed `question + hypothetical doc` together instead of the
+// doc alone. Keeps the question's own discriminative terms in the vector (pure
+// HyDE throws them away — which crushed synonym recall) while still gaining the
+// answer-shaped expansion. The robustness variant of HyDE.
+const hydeConcat = flags['hyde-concat'] !== undefined;
+// --expand: query expansion / multi-query (Module 6.5). Generate N rephrasings
+// with the local LLM, retrieve each, fuse the rankings via RRF. Additive (the
+// original question is always query #0), so it can only widen coverage. Targets
+// synonym / multi-hop. --expand-n sets the rephrasing count (default 3),
+// --expand-model the llama-swap profile.
+const expandEnabled = flags.expand !== undefined;
+const expandN = Number(flags['expand-n'] ?? '3');
+const expandModel = flags['expand-model'] || undefined;
 const genEnabled = flags.generation !== undefined || flags.full !== undefined;
 const llm = (flags.llm ?? DEFAULT_LLM) as LLMChoice;
 // Optional override for the llama-swap model profile — pass a profile name
@@ -112,11 +134,22 @@ const showAnswers = flags['show-answers'] !== undefined;
 // Load golden set
 // ---------------------------------------------------------------------------
 const goldenRaw = await readFile(goldenPath, 'utf-8');
-const golden = JSON.parse(goldenRaw) as GoldenEntry[];
-console.log(`Loaded ${golden.length} questions from ${goldenPath}`);
-const rerankDesc = rerankEnabled ? `on (pool ${rerankPoolK})` : 'off';
+// --category=contradiction (or a comma list) restricts the run to those
+// categories — cheap iteration when tuning one category (e.g. a prompt fix).
+const categoryFilter = flags.category;
+const golden = (JSON.parse(goldenRaw) as GoldenEntry[]).filter(
+  (e) => !categoryFilter || categoryFilter.split(',').includes(e.category),
+);
 console.log(
-  `Embedder: ${embedder}  |  Chunking: ${chunkingVersion}  |  Mode: ${retrievalMode}  |  Rerank: ${rerankDesc}  |  Top-K: ${RETRIEVE_TOP_K}`,
+  `Loaded ${golden.length} questions from ${goldenPath}${categoryFilter ? ` (category: ${categoryFilter})` : ''}`,
+);
+const rerankDesc = rerankEnabled ? `on (pool ${rerankPoolK})` : 'off';
+const hydeDesc = hydeEnabled
+  ? `on (${hydeModel ?? 'qwen-9b-16k'}${hydeConcat ? ', concat' : ''})`
+  : 'off';
+const expandDesc = expandEnabled ? `on (n=${expandN}, ${expandModel ?? 'qwen-9b-16k'})` : 'off';
+console.log(
+  `Embedder: ${embedder}  |  Chunking: ${chunkingVersion}  |  Mode: ${retrievalMode}  |  Rerank: ${rerankDesc}  |  HyDE: ${hydeDesc}  |  Expand: ${expandDesc}  |  Top-K: ${RETRIEVE_TOP_K}`,
 );
 if (genEnabled) {
   const llmDesc = llm === 'llamacpp' && llamacppModel ? `llamacpp (${llamacppModel})` : llm;
@@ -157,9 +190,37 @@ for (const entry of golden) {
   console.log(`\n[${entry.id}] (${entry.category})`);
   console.log(`  Q: ${entry.question}`);
 
+  // --- HyDE (optional) --------------------------------------------------
+  // Generate the hypothetical-answer doc BEFORE retrieval and embed it instead
+  // of the question. Timed separately so the per-query LLM tax is visible.
+  let embedText: string | undefined;
+  if (hydeEnabled) {
+    const hyde = await generateHydeDoc(entry.question, { llamacppModel: hydeModel });
+    embedText = hydeConcat ? `${entry.question}\n\n${hyde.doc}` : hyde.doc;
+    console.log(
+      `  hyde:     ${hyde.latencyMs}ms  (${hyde.outputTokens} out tok)  "${hyde.doc.slice(0, 90).replace(/\n/g, ' ')}…"`,
+    );
+  }
+
+  // --- Query expansion (optional) ---------------------------------------
+  // Build the multi-query set BEFORE retrieval. The original question is always
+  // query #0 so expansion is additive. Timed via the retrieve block below.
+  let queries: string[] | undefined;
+  if (expandEnabled) {
+    const exp = await generateQueryVariations(entry.question, {
+      n: expandN,
+      llamacppModel: expandModel,
+    });
+    queries = [entry.question, ...exp.variations];
+    console.log(
+      `  expand:   ${exp.latencyMs}ms  (+${exp.variations.length} variations)  ${exp.variations
+        .map((v) => `"${v.slice(0, 55).replace(/\n/g, ' ')}"`)
+        .join('  ')}`,
+    );
+  }
+
   // --- Retrieve ---------------------------------------------------------
-  const tR = Date.now();
-  const retrieved = await retrieve(db, entry.question, {
+  const retrieveOpts = {
     topK: RETRIEVE_TOP_K,
     provider: embedder,
     chunkingVersion,
@@ -167,7 +228,11 @@ for (const entry of golden) {
     lexicalWeight,
     rerank: rerankEnabled,
     rerankPoolK,
-  });
+  };
+  const tR = Date.now();
+  const retrieved = queries
+    ? await retrieveMultiQuery(db, entry.question, queries, retrieveOpts)
+    : await retrieve(db, entry.question, { ...retrieveOpts, embedText });
   const latencyMs = Date.now() - tR;
   const retrievedIds = retrieved.map((r) => r.chunkId);
   const similarities = retrieved.map((r) => Number(r.similarity.toFixed(3)));
@@ -255,7 +320,7 @@ for (const entry of golden) {
         console.log(
           `    unsupported: ${faith.unsupportedClaims
             .slice(0, 2)
-            .map((c) => '"' + c.slice(0, 100) + '"')
+            .map((c) => `"${c.slice(0, 100)}"`)
             .join('; ')}`,
         );
       }
@@ -263,7 +328,7 @@ for (const entry of golden) {
         console.log(
           `    missed:      ${complete.missedFacts
             .slice(0, 2)
-            .map((c) => '"' + c.slice(0, 100) + '"')
+            .map((c) => `"${c.slice(0, 100)}"`)
             .join('; ')}`,
         );
       }
@@ -380,6 +445,8 @@ const batch: BatchResult = {
     chunkingVersion,
     retrievalMode,
     rerank: rerankEnabled ? `bge-reranker-v2-m3 (pool ${rerankPoolK})` : 'off',
+    hyde: hydeDesc,
+    expand: expandDesc,
     topK: RETRIEVE_TOP_K,
     timestamp: new Date().toISOString(),
     generator: genEnabled ? llm : undefined,

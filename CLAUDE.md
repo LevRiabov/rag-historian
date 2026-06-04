@@ -8,11 +8,11 @@ Working notes for Claude Code in this repo. Keep tight — every line is context
 
 ## Current state
 
-**Module: 6 — Advanced RAG Techniques** (starting)
+**Module: 6 — Advanced RAG Techniques COMPLETE (6.1–6.6 done); Module 7 — Agent Fundamentals next**
 
 Update the line above whenever a module finishes or the next one starts. The current-module marker is how I keep my bearings between sessions.
 
-Baseline numbers + eval methodology locked in: see [notes/module-5-evals.md](notes/module-5-evals.md). Every Module 6 technique gets A/B'd against those tables.
+Baseline + eval methodology: [notes/module-5-evals.md](notes/module-5-evals.md). **Module 6 capstone comparison table (what worked/didn't + why): [notes/module-6-comparison.md](notes/module-6-comparison.md). Running log + every A/B delta + footguns: [notes/module-6-advanced-rag.md](notes/module-6-advanced-rag.md).** Short version: final retrieval stack is `contextual-v1` + rerank-on-context (recall@5 35.1→51.6, recall@20 55.4→70.5, MRR 0.475→0.568); **query expansion `--expand --expand-n=5` is an opt-in +2.1 r@5 on top (synonym/multi-hop only, ~1s/query cost)**. Gold is chunking-invariant SPANS; `evals/run.ts` flags: `--chunking-version`, `--hybrid`/`--lexical-weight`, `--rerank`/`--rerank-pool`, `--hyde`/`--hyde-concat`, `--expand`/`--expand-n`, `--category`, `--generation`/`--llm`/`--generator-k`. **6.5 result: HyDE REJECTED (net −9.1 r@5 — wrong tool for a small single-topic corpus); expansion modest-accept at n=5.** Open/settled: **synthesis is coverage-flat under every retrieval lever → it's reranker/generation-bound, NOT a retrieval floor** (joins contradiction as a Module 7 agent / stronger-generator problem).
 
 ## Stack
 
@@ -23,7 +23,7 @@ Baseline numbers + eval methodology locked in: see [notes/module-5-evals.md](not
 - **Env:** `dotenv`, single `.env` at repo root
 - **LLM SDKs:** `@anthropic-ai/sdk` for Claude; OpenAI SDK reused for OpenAI proper + LM Studio (OpenAI-compatible) when modules need them
 - **Local inference:** roman-research runs on **llama.cpp via llama-swap** (native, `http://127.0.0.1:8080`, server lives at `C:\llm`) for all three: chat (`createLlamacpp`, Qwen3.5-9B profiles — thinking on/off is per-profile via `--reasoning`), embeddings (bge-m3), and reranking (bge-reranker-v2-m3). `LLAMA_SWAP_BASE_URL` points at it. Early mini-projects (01–05) still use **LM Studio** (primary, `:1234`) / Ollama via `createLocalLLM({ lmstudio, ollama })`, flipped by `LOCAL_LLM_PROVIDER`. GBNF is a hard token-level constraint on both LM Studio and llama.cpp; Ollama's per-model renderers engage it inconsistently (Gemma 4 leaks out-of-enum values).
-- **DB:** Postgres 16 + pgvector — landed in Module 3, not before
+- **DB:** ParadeDB image (Postgres 18 + pgvector + `pg_search` BM25), `paradedb/paradedb` in docker-compose — migrated from `pgvector/pg16` in Module 6.2 for real BM25 (core FTS has no IDF). Volume mounts at `/var/lib/postgresql` (PG18). Reranking served by a separate **Infinity** container (`:7997`, bge-reranker-v2-m3; client in `lib/rerank.ts`). Embeddings are **local bge-m3 only** — never OpenAI.
 - **Tracing:** Langfuse — wired in Module 1, not Module 0
 - **Evals:** Promptfoo — Module 5
 

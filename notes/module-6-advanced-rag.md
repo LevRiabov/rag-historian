@@ -514,3 +514,104 @@ Per-category exposes two DIFFERENT remaining gaps:
   **2.22–2.44** (lowest) → *generation*-bound: the model retrieves both
   conflicting accounts but doesn't surface both sides. A system-prompt fix
   (name each source's claim on disagreement), NOT a retrieval lever.
+
+---
+
+## 6.5 — Query rewriting
+
+### HyDE (Hypothetical Document Embeddings) — tested, REJECTED
+
+Mechanism: instead of embedding the question, ask local qwen (no-think) to
+hallucinate an answer paragraph and embed THAT. The fake answer doesn't need to
+be *correct*, only *shaped like* the answer (declarative, entity-dense) so its
+vector lands nearer the corpus than the interrogative question does. Code:
+`roman-research/query/hyde.ts`; harness flag `--hyde` (+ `--hyde-concat`).
+Scoped to the vector arm ONLY — `question` still drives BM25 + reranker
+(`embedText` option on `retrieve()`).
+
+A/B on contextual-v1, vector-only, all categories:
+
+| Category | Baseline r@5 | pure HyDE | concat HyDE |
+|---|---:|---:|---:|
+| literal | 76.9 | 69.4 | 59.3 |
+| synonym | 31.3 | **12.5** | 25.0 |
+| multi-hop | 40.7 | 27.8 | 27.8 |
+| synthesis | 22.9 | 25.0 | 26.0 |
+| contradiction | 77.8 | 69.4 | **46.3** |
+| **r@5 agg** | **51.0** | **41.9** | **37.4** |
+| **r@20 agg** | **68.4** | 66.9 | 63.4 |
+| **MRR** | **0.552** | 0.499 | 0.449 |
+
+**Both variants LOSE. Rejected.** This is a structural mismatch, not a tuning
+miss:
+- **Pure HyDE** *replaces* the question → throws away its discriminative terms →
+  **synonym craters 31→12** (the category that needs those terms most). Even on
+  the target (synthesis) it's noise at r@5 and worse at r@20.
+- **Concat** (`question + doc`) rescues synonym (12→25) — confirming "keep the
+  question's terms" — but **tanks the strong cats** (contradiction 78→46,
+  literal 77→59). Why: bge-m3 is **mean-pooled**, so a ~200-tok hallucination
+  *outweighs* a ~15-tok question and drags the combined vector off the spot the
+  clean question already nailed. No good middle: pure loses the terms, concat
+  drowns them.
+- **Root cause — wrong tool for this corpus.** HyDE rescues queries that land in
+  the WRONG REGION of a large, diverse corpus. Ours is tiny + single-topic
+  (everything is Caesar): the question already lands in the right region; the
+  failure is fine-grained *ranking within a tight cluster*, which HyDE can't fix
+  and actively disturbs by injecting hallucinated entities (drift = wrong chunk
+  *within* the cluster). Contextual retrieval already fixed the document side, so
+  the expansion is redundant noise. Averaging N docs wouldn't save it — concat
+  shows the problem is hallucination *dilution*, not single-doc variance.
+- **Takeaway:** HyDE is a large-corpus, weak-document-side technique. We have the
+  opposite. Code kept (flag, off by default) for the writeup; never enabled.
+
+### Query expansion / multi-query — tested, MODEST ACCEPT at n=5
+
+The additive half of query rewriting: generate N rephrasings with local qwen
+(structured output, ~700ms–1.2s), retrieve EACH (its own embedding + BM25 text),
+fuse the per-query rankings via RRF, rerank the fused pool with the ORIGINAL
+question. Code: `roman-research/query/expand.ts` +
+`retrieveMultiQuery()` in `retrieve.ts`; harness flags `--expand --expand-n`.
+The original question is always query #0, so it's purely additive — a drifting
+variation costs a pool slot, never the baseline hit.
+
+**Variations look great** — genuine vocabulary diversity ("falling sickness" ↔
+"epileptic fits", "pecuniary distress" ↔ "monetary hardship"). qwen structured
+output is reliable here.
+
+**Needs rerank — and enough variations.** Two A/B axes:
+
+*Vector-only (no rerank), synonym category:* HyDE-like FAILURE — r@5 31→25,
+r@20 69→56. RRF rewards cross-query CONSENSUS, so a wrong-but-central chunk in 3
+variations (RRF ≈ 3/65) beats original-only gold (RRF ≈ 1/75) and ejects it.
+**Expansion without a reranker degrades precision.** Don't ship it bare.
+
+*On the best stack (contextual + rerank), n-sweep:*
+
+| n | r@5 | r@20 | MRR | synonym r@20 |
+|---|---:|---:|---:|---:|
+| 0 (baseline) | 51.6 | 70.5 | 0.568 | 68.8 |
+| 3 | 51.6 | 72.3 | 0.569 | 68.8 |
+| **5** | **53.7** | **74.0** | **0.570** | **81.3** |
+| 7 | 52.3 | 71.7 | 0.566 | 62.5 |
+
+**Inverted-U; n=5 is the peak** (at our fixed rerankPoolK=50). n=3 lacks the
+vocabulary diversity to push synonym/multi-hop gold into the pool; n=7 floods the
+50-slot pool with consensus-noise the reranker can't filter (synonym r@20
+collapses 81→62). Per-category at n=5: **synonym r@5 +6.2 / r@20 +12.5,
+multi-hop r@5 +7.4** — EXACTLY the categories theory predicts. Contradiction
+−2.8 (noise). Net **+2.1 r@5, +3.5 r@20**.
+
+- **Verdict:** modest, real win at n=5 — the opposite of HyDE (additive keeps the
+  question's terms; replacement throws them away). Kept as an OPT-IN flag, not
+  default: the gain is small and it adds a per-query LLM call (~1s) + 6× the
+  embed/SQL work. A larger rerank pool might shift the optimum past n=5 (its own
+  A/B; not chased). Worth enabling when synonym/multi-hop recall matters and
+  latency budget allows.
+- **Synthesis is coverage-flat under BOTH HyDE and expansion** (22.9 → 22.9,
+  every run). 6.5 set out to fix the synthesis floor via retrieval; the hard
+  result is **it can't be fixed at retrieval.** Even when expansion lifts
+  synthesis r@20 (→45.8/49.0), the reranker won't promote those chunks to top-5
+  — synthesis gold is relevant only in AGGREGATE, invisible to a (question,
+  single-chunk) cross-encoder. **Synthesis joins contradiction as a Module 7
+  generation/agent problem, not a retrieval lever.** This is the load-bearing
+  conclusion of 6.5.

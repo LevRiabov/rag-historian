@@ -96,6 +96,14 @@ export interface RetrieveOptions {
    *  coverage realized + more cross-encoder passes (slower). Only used when
    *  `rerank` is true. */
   rerankPoolK?: number;
+  /** HyDE (Module 6.5): the text to EMBED for first-stage vector search, when
+   *  it should differ from `question`. Pass a hypothetical answer document
+   *  (`generateHydeDoc`) here to search on answer-shaped text that lands nearer
+   *  the corpus than the bare question does. Deliberately scoped to the vector
+   *  arm ONLY: the BM25 lexical arm and the cross-encoder reranker still use
+   *  `question`, because hallucinated terms poison exact-match and a reranker
+   *  must read the REAL question to judge relevance. Defaults to `question`. */
+  embedText?: string;
 }
 
 /**
@@ -116,10 +124,14 @@ export async function retrieve(
     lexicalWeight = 1.0,
     rerank: doRerank = false,
     rerankPoolK = 50,
+    embedText,
   } = options;
 
   const embedder = createEmbedder({ provider });
-  const queryVec = await embedder.embedOne(question);
+  // HyDE: embed the hypothetical-answer doc when provided, else the question
+  // itself. Only the dense vector is affected — `question` still feeds BM25 and
+  // the reranker below (see embedText doc on RetrieveOptions).
+  const queryVec = await embedder.embedOne(embedText ?? question);
 
   // Pick the matching column for the chosen embedder. `column` is internal,
   // never user input, so interpolating it into SQL is safe.
@@ -171,6 +183,111 @@ export async function retrieve(
   return ranking
     .slice(0, topK)
     .map(({ index, score }) => ({ ...candidates[index], rerankScore: score }) as RetrievedChunk);
+}
+
+/**
+ * Multi-query retrieval (query expansion, Module 6.5). Run first-stage
+ * retrieval for EACH query in `queries` (the caller builds this as
+ * `[originalQuestion, ...variations]` — see `expand.ts`), then fuse the per-query
+ * rankings with Reciprocal Rank Fusion — the SAME rank-based fusion hybrid uses
+ * across its vector/lexical arms, here applied across queries. A chunk surfaced
+ * by SEVERAL variations accumulates RRF mass and rises: agreement across
+ * rephrasings is a robustness signal (the chunk is relevant under multiple
+ * readings of the question), exactly what we want to reward.
+ *
+ * Because the original question is query #0, expansion is purely additive — a
+ * variation that drifts can only fail to contribute, never displace what the
+ * plain question already finds. Reranking (when on) re-scores the fused pool
+ * with the ORIGINAL question on context-text, same as single-query retrieve():
+ * the union just gives the cross-encoder a wider, more diverse pool to lift gold
+ * from.
+ *
+ * Note: each query gets its own embedding + SQL round-trip (sequential — they
+ * share one pg connection), so wall-time scales with |queries|. Fine at our
+ * scale (≈4 queries); a connection pool would parallelize it in production.
+ */
+export async function retrieveMultiQuery(
+  db: Client,
+  question: string,
+  queries: string[],
+  options: RetrieveOptions = {},
+): Promise<RetrievedChunk[]> {
+  const {
+    topK = 5,
+    provider = 'llamacpp',
+    chunkingVersion = 'naive-v1',
+    mode = 'vector',
+    lexicalWeight = 1.0,
+    rerank: doRerank = false,
+    rerankPoolK = 50,
+  } = options;
+
+  const embedder = createEmbedder({ provider });
+  const column = provider === 'openai' ? 'embedding' : 'embedding_bge';
+
+  // Pull a WIDE pool per query so the union has material and RRF can reward
+  // cross-query agreement. ef_search must cover it for the vector arm.
+  const fetchK = doRerank ? Math.max(rerankPoolK, topK) : topK;
+  const candidatePool = Math.max(fetchK * 5, 100);
+  await db.query(`SET hnsw.ef_search = ${candidatePool}`);
+
+  // First-stage retrieval per query (sequential — single pg connection). Each
+  // variation drives BOTH arms with its OWN text: its embedding for the vector
+  // arm, its words for the BM25 arm (in hybrid mode) — the variation's distinct
+  // vocabulary is the entire point.
+  const perQueryRows: RetrieveRow[][] = [];
+  for (const q of queries) {
+    const vec = await embedder.embedOne(q);
+    const rows =
+      mode === 'hybrid'
+        ? await hybridQuery(
+            db,
+            vec,
+            q,
+            chunkingVersion,
+            column,
+            candidatePool,
+            candidatePool,
+            lexicalWeight,
+          )
+        : await vectorQuery(db, vec, chunkingVersion, column, candidatePool);
+    perQueryRows.push(rows);
+  }
+
+  // RRF across queries: Σ 1/(60 + rank_q) over every query that surfaced the
+  // chunk. Rank-based, so it merges pools with no score normalization (cosine
+  // vs BM25 vs across-query are all incomparable as raw scores).
+  const RRF_K = 60;
+  const fused = new Map<number, { row: RetrieveRow; score: number }>();
+  for (const rows of perQueryRows) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row) continue;
+      const inc = 1 / (RRF_K + (i + 1));
+      const prev = fused.get(row.chunk_id);
+      if (prev) prev.score += inc;
+      else fused.set(row.chunk_id, { row, score: inc });
+    }
+  }
+
+  // Order by fused score; rrfScore now means the CROSS-QUERY fusion score.
+  const candidates = [...fused.values()]
+    .sort((a, b) => b.score - a.score)
+    .map(({ row, score }) => ({ ...mapRow(row), rrfScore: score }));
+
+  if (!doRerank) return candidates.slice(0, topK);
+
+  // Second stage: rerank the fused pool with the ORIGINAL question (NOT a
+  // variation — the cross-encoder judges relevance to what the user actually
+  // asked), on context-text when present (same alignment rule as retrieve()).
+  const pool = candidates.slice(0, rerankPoolK);
+  const { ranking } = await rerank(
+    question,
+    pool.map((c) => (c.context ? `${c.context}\n\n${c.text}` : c.text)),
+  );
+  return ranking
+    .slice(0, topK)
+    .map(({ index, score }) => ({ ...pool[index], rerankScore: score }) as RetrievedChunk);
 }
 
 /** Shape returned by both retrieval queries (hybrid adds rrf_score). */

@@ -50,8 +50,8 @@ import pgvector from 'pgvector/pg';
 import { createEmbedder, createLlamacpp, type Embedder, LLAMACPP_MODELS } from '../../lib/index.ts';
 import { type Chunk, chunkSections } from './chunk.ts';
 import { readRawFile } from './download.ts';
-import { parseSource, type ParsedSection } from './parse.ts';
-import { type SourceManifest, SOURCES } from './sources.ts';
+import { type ParsedSection, parseSource } from './parse.ts';
+import { SOURCES, type SourceManifest } from './sources.ts';
 
 const CHUNKING_VERSION = 'contextual-v1';
 const NAIVE_VERSION = 'naive-v1';
@@ -114,8 +114,7 @@ function bookOf(chapter: string): string | null {
 // CLI
 // ---------------------------------------------------------------------------
 const argv = process.argv.slice(2);
-const flag = (name: string) =>
-  argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+const flag = (name: string) => argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
 const flagVal = (name: string) => flag(name)?.split('=')[1];
 const onlySource = flagVal('source');
 const limit = flagVal('limit') ? Number(flagVal('limit')) : undefined;
@@ -207,9 +206,7 @@ for (const source of sourcesToRun) {
     // apparatus? Gold should be narrative — warn if not.
     const overlapsGold = goldSpans.some(
       (g) =>
-        g.sourceSlug === source.slug &&
-        chunk.charStart < g.charEnd &&
-        chunk.charEnd > g.charStart,
+        g.sourceSlug === source.slug && chunk.charStart < g.charEnd && chunk.charEnd > g.charStart,
     );
     if (overlapsGold && /\[Footnote|FOOTNOTES:/.test(chunk.text)) footnoteGoldHits++;
 
@@ -275,7 +272,9 @@ for (let i = 0; i < units.length; i++) {
     } catch (err) {
       genFails++;
       u.note = ''; // degrade: embed citation + chunk without a note
-      console.warn(`  ✗ [${u.source.slug} ${u.chunk.chapter}] gen failed: ${String(err).slice(0, 100)}`);
+      console.warn(
+        `  ✗ [${u.source.slug} ${u.chunk.chapter}] gen failed: ${String(err).slice(0, 100)}`,
+      );
     }
     noteCache[key] = u.note;
     if (i % 50 === 0) await saveCache(); // crash-safe incremental persist
@@ -301,76 +300,86 @@ console.log(
 );
 
 if (!dryRun) {
-// ---------------------------------------------------------------------------
-// Phase B — embed the contextualized texts (bge-m3, local, loaded once).
-// ---------------------------------------------------------------------------
-console.log(`\n--- Phase B: embedding ${units.length} contextualized texts (bge-m3, local) ---`);
-const texts = units.map((u) => clampForEmbedding(u.contextualText ?? ''));
-const clamped = units.filter((u) => (u.contextualText?.length ?? 0) > 0 && clampForEmbedding(u.contextualText ?? '') !== u.contextualText).length;
-if (clamped > 0) console.log(`  (clamped ${clamped} oversize input(s) to ${MAX_EMBED_TOKENS} tok for the embedder)`);
-const tB = Date.now();
-const bgeRes = await bge.embed(texts);
-console.log(`  bge-m3:  ${bgeRes.vectors.length} vectors in ${bgeRes.latencyMs}ms (${bge.dimension}d)`);
-console.log(`Phase B done in ${Math.round((Date.now() - tB) / 1000)}s.`);
+  // ---------------------------------------------------------------------------
+  // Phase B — embed the contextualized texts (bge-m3, local, loaded once).
+  // ---------------------------------------------------------------------------
+  console.log(`\n--- Phase B: embedding ${units.length} contextualized texts (bge-m3, local) ---`);
+  const texts = units.map((u) => clampForEmbedding(u.contextualText ?? ''));
+  const clamped = units.filter(
+    (u) =>
+      (u.contextualText?.length ?? 0) > 0 &&
+      clampForEmbedding(u.contextualText ?? '') !== u.contextualText,
+  ).length;
+  if (clamped > 0)
+    console.log(
+      `  (clamped ${clamped} oversize input(s) to ${MAX_EMBED_TOKENS} tok for the embedder)`,
+    );
+  const tB = Date.now();
+  const bgeRes = await bge.embed(texts);
+  console.log(
+    `  bge-m3:  ${bgeRes.vectors.length} vectors in ${bgeRes.latencyMs}ms (${bge.dimension}d)`,
+  );
+  console.log(`Phase B done in ${Math.round((Date.now() - tB) / 1000)}s.`);
 
-// ---------------------------------------------------------------------------
-// Phase C — store. Replace any prior contextual-v1 for these sources.
-// ---------------------------------------------------------------------------
-console.log(`\n--- Phase C: storing ${units.length} contextual-v1 chunks ---`);
-for (const source of sourcesToRun) {
-  const sid = await sourceIdOf(source.slug);
-  const del = await db.query(
-    `DELETE FROM chunks WHERE source_id=$1 AND chunking_version=$2`,
-    [sid, CHUNKING_VERSION],
-  );
-  if ((del.rowCount ?? 0) > 0) console.log(`  ${source.slug}: cleared ${del.rowCount} prior`);
-}
+  // ---------------------------------------------------------------------------
+  // Phase C — store. Replace any prior contextual-v1 for these sources.
+  // ---------------------------------------------------------------------------
+  console.log(`\n--- Phase C: storing ${units.length} contextual-v1 chunks ---`);
+  for (const source of sourcesToRun) {
+    const sid = await sourceIdOf(source.slug);
+    const del = await db.query(`DELETE FROM chunks WHERE source_id=$1 AND chunking_version=$2`, [
+      sid,
+      CHUNKING_VERSION,
+    ]);
+    if ((del.rowCount ?? 0) > 0) console.log(`  ${source.slug}: cleared ${del.rowCount} prior`);
+  }
 
-const COLS = 10;
-const values: unknown[] = [];
-const tuples: string[] = [];
-for (let i = 0; i < units.length; i++) {
-  const u = units[i];
-  if (!u) continue;
-  const bgeVec = bgeRes.vectors[i];
-  if (!bgeVec) throw new Error(`Missing bge vector at ${i}`);
-  const base = i * COLS;
-  tuples.push(
-    `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10})`,
-  );
-  values.push(
-    u.sourceId,
-    CHUNKING_VERSION,
-    u.chunk.chunkIndex,
-    u.chunk.chapter,
-    u.chunk.text, // ORIGINAL text — citations/display/span-offsets unchanged
-    u.chunk.charStart,
-    u.chunk.charEnd,
-    null, // OpenAI `embedding` column — unused; this project is local-only
-    pgvector.toSql(bgeVec), // CONTEXTUAL embedding (bge-m3, local)
-    { tokenCount: u.chunk.tokenCount, context: u.note ?? '' },
-  );
-}
-await db.query(
-  `INSERT INTO chunks
+  const COLS = 10;
+  const values: unknown[] = [];
+  const tuples: string[] = [];
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i];
+    if (!u) continue;
+    const bgeVec = bgeRes.vectors[i];
+    if (!bgeVec) throw new Error(`Missing bge vector at ${i}`);
+    const base = i * COLS;
+    tuples.push(
+      `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10})`,
+    );
+    values.push(
+      u.sourceId,
+      CHUNKING_VERSION,
+      u.chunk.chunkIndex,
+      u.chunk.chapter,
+      u.chunk.text, // ORIGINAL text — citations/display/span-offsets unchanged
+      u.chunk.charStart,
+      u.chunk.charEnd,
+      null, // OpenAI `embedding` column — unused; this project is local-only
+      pgvector.toSql(bgeVec), // CONTEXTUAL embedding (bge-m3, local)
+      { tokenCount: u.chunk.tokenCount, context: u.note ?? '' },
+    );
+  }
+  await db.query(
+    `INSERT INTO chunks
      (source_id, chunking_version, chunk_index, chapter, text,
       char_start, char_end, embedding, embedding_bge, metadata)
    VALUES ${tuples.join(', ')}`,
-  values,
-);
-console.log(`Stored ${units.length} chunks.`);
+    values,
+  );
+  console.log(`Stored ${units.length} chunks.`);
 
-// ---------------------------------------------------------------------------
-// Verify
-// ---------------------------------------------------------------------------
-const ver = await db.query<{ slug: string; n: string; with_bge: string }>(
-  `SELECT s.slug, count(c.id) n, count(c.embedding_bge) with_bge
+  // ---------------------------------------------------------------------------
+  // Verify
+  // ---------------------------------------------------------------------------
+  const ver = await db.query<{ slug: string; n: string; with_bge: string }>(
+    `SELECT s.slug, count(c.id) n, count(c.embedding_bge) with_bge
      FROM sources s LEFT JOIN chunks c ON c.source_id=s.id AND c.chunking_version=$1
     GROUP BY s.id, s.slug ORDER BY s.id`,
-  [CHUNKING_VERSION],
-);
-console.log(`\n=== DB verification (${CHUNKING_VERSION}) ===`);
-for (const r of ver.rows) console.log(`  ${r.slug.padEnd(20)} chunks=${r.n.padStart(4)} bge=${r.with_bge.padStart(4)}`);
+    [CHUNKING_VERSION],
+  );
+  console.log(`\n=== DB verification (${CHUNKING_VERSION}) ===`);
+  for (const r of ver.rows)
+    console.log(`  ${r.slug.padEnd(20)} chunks=${r.n.padStart(4)} bge=${r.with_bge.padStart(4)}`);
 } else {
   console.log(`\nDRY RUN — nothing stored.`);
 }
