@@ -138,6 +138,11 @@ export interface RunToolsOpts extends CallOpts {
   costCapUSD?: number;
   /** Called after each tool call. Use for live logging / progress. */
   onStep?: (step: ToolStep) => void;
+  /** Name of a TERMINAL tool. When the model calls it, the loop runs that tool
+   *  then stops (stop='final_answer'), returning the tool's output as `text`.
+   *  The Module 7 agent uses this for its `finalize` tool — an explicit "I'm
+   *  done" signal, rather than relying on the model emitting a bare text turn. */
+  terminalToolName?: string;
 }
 
 export interface StructuredOpts<Schema extends z.ZodObject<z.ZodRawShape>> extends CallOpts {
@@ -404,6 +409,7 @@ export function createClaude(config: ClaudeConfig = {}) {
         content: string;
       }> = [];
 
+      let terminalArticle: string | null = null;
       for (const block of toolUseBlocks) {
         const tool = findTool(opts.tools, block.name);
         const tStart = Date.now();
@@ -434,9 +440,62 @@ export function createClaude(config: ClaudeConfig = {}) {
         };
         steps.push(step);
         opts.onStep?.(step);
+
+        if (opts.terminalToolName && block.name === opts.terminalToolName) {
+          terminalArticle = output;
+        }
       }
 
+      // Keep the transcript valid (every tool_use gets its tool_result) even
+      // when we're about to stop, so `messages` is inspectable.
       messages.push({ role: 'user', content: toolResultsContent });
+
+      // Terminal tool called this turn → stop, returning its output as the final
+      // text (no further round-trip).
+      if (terminalArticle !== null) {
+        finalText = terminalArticle;
+        stop = 'final_answer';
+        break;
+      }
+    }
+
+    // Budget exhausted without a terminal answer. If the caller runs an
+    // agent-style loop (terminalToolName set), make ONE final tool-free call so
+    // the run still returns an article instead of '' — a loop that over-searches
+    // to the cap would otherwise score as a non-answer. `stop` stays
+    // 'max_iterations' (honest about WHY it ended); the model just synthesizes
+    // from what it already gathered, since with no tools it cannot search again.
+    if (stop === 'max_iterations' && opts.terminalToolName) {
+      safeCall(tracer, 'onRequest', {
+        provider: 'anthropic',
+        model,
+        operation: 'runTools:synthesize',
+        messageCount: messages.length,
+        toolCount: 0,
+      });
+      const tS = Date.now();
+      const response = await sdk.messages.create({
+        model,
+        ...buildReasoningParams(opts.reasoning, opts.maxTokens, defaultMaxTokens),
+        ...(opts.temperature !== undefined && !opts.reasoning && { temperature: opts.temperature }),
+        ...(opts.system !== undefined && {
+          system: makeSystem(opts.system, opts.cacheSystem ?? false),
+        }),
+        messages: messages as Anthropic.MessageParam[],
+        // No `tools` — force a text answer from what was already gathered.
+      });
+      const usage = extractUsage(response.usage);
+      const cost = calculateAnthropicCost(usage, model);
+      totalUsage = addUsage(totalUsage, usage);
+      totalCost = addCost(totalCost, cost);
+      safeCall(tracer, 'onResponse', {
+        usage,
+        cost,
+        latencyMs: Date.now() - tS,
+        stopReason: response.stop_reason ?? 'unknown',
+      });
+      messages.push({ role: 'assistant', content: response.content });
+      finalText = extractText(response.content);
     }
 
     return { text: finalText, usage: totalUsage, cost: totalCost, stop, steps, messages };

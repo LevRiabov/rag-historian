@@ -104,6 +104,12 @@ export interface RetrieveOptions {
    *  `question`, because hallucinated terms poison exact-match and a reranker
    *  must read the REAL question to judge relevance. Defaults to `question`. */
   embedText?: string;
+  /** Restrict retrieval to a SINGLE source (sources.slug). The mechanism behind
+   *  the Module 7 agent's `search_within_source` tool: read each account in
+   *  isolation before comparing them, instead of letting one fused top-K blend
+   *  conflicting sources (the contradiction-handling fix). Vector mode only —
+   *  see the guard in `retrieve`. Default: search all sources. */
+  sourceSlug?: string;
 }
 
 /**
@@ -125,7 +131,17 @@ export async function retrieve(
     rerank: doRerank = false,
     rerankPoolK = 50,
     embedText,
+    sourceSlug,
   } = options;
+
+  // Source-scoped retrieval (the agent's search_within_source) is wired through
+  // the vector arm only — the one the agent's final stack uses. Guard rather
+  // than silently ignore the filter in hybrid mode, which the agent never uses.
+  if (sourceSlug && mode === 'hybrid') {
+    throw new Error(
+      'retrieve: sourceSlug is supported in vector mode only (the agent stack is vector+rerank).',
+    );
+  }
 
   const embedder = createEmbedder({ provider });
   // HyDE: embed the hypothetical-answer doc when provided, else the question
@@ -161,7 +177,7 @@ export async function retrieve(
           fetchK,
           lexicalWeight,
         )
-      : await vectorQuery(db, queryVec, chunkingVersion, column, fetchK);
+      : await vectorQuery(db, queryVec, chunkingVersion, column, fetchK, sourceSlug);
 
   const candidates = rows.map(mapRow);
   if (!doRerank) return candidates;
@@ -331,13 +347,16 @@ const PROJECTION = (column: string) => `
   s.year_written    AS year_written,
   s.translator      AS translator`;
 
-/** Dense-only retrieval (the Module 4/5 baseline). */
+/** Dense-only retrieval (the Module 4/5 baseline). When `sourceSlug` is set,
+ *  restrict to that one source — the agent's search_within_source path. The
+ *  `$4::text IS NULL OR ...` form keeps a single SQL statement for both cases. */
 async function vectorQuery(
   db: Client,
   queryVec: number[],
   chunkingVersion: string,
   column: string,
   topK: number,
+  sourceSlug?: string,
 ): Promise<RetrieveRow[]> {
   const result = await db.query<RetrieveRow>(
     `SELECT ${PROJECTION(column)}
@@ -345,9 +364,10 @@ async function vectorQuery(
        JOIN sources s ON s.id = c.source_id
       WHERE c.${column} IS NOT NULL
         AND c.chunking_version = $3
+        AND ($4::text IS NULL OR s.slug = $4)
       ORDER BY c.${column} <=> $1
       LIMIT $2`,
-    [pgvector.toSql(queryVec), topK, chunkingVersion],
+    [pgvector.toSql(queryVec), topK, chunkingVersion, sourceSlug ?? null],
   );
   return result.rows;
 }

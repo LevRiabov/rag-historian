@@ -51,6 +51,8 @@ export type {
   OpenAIEmbedderConfig,
 } from './embeddings.ts';
 export { createEmbedder } from './embeddings.ts';
+export type { CreateLangfuseTracerOpts, LangfuseTraceHandle } from './langfuse.ts';
+export { createLangfuseTracer, flushLangfuse } from './langfuse.ts';
 export type { LlamacppClient, LlamacppModel } from './llamacpp.ts';
 export { createLlamacpp, LLAMACPP_MODELS } from './llamacpp.ts';
 export type {

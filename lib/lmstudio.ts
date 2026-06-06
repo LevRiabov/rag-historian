@@ -109,6 +109,11 @@ export interface LMStudioRunToolsOpts extends LMStudioCallOpts {
   tools: Tool[];
   maxIterations?: number;
   onStep?: (step: ToolStep) => void;
+  /** Name of a TERMINAL tool. When the model calls it, the loop runs that tool
+   *  then stops (stop='final_answer'), returning the tool's output as `text`.
+   *  The Module 7 agent uses this for its `finalize` tool — an explicit "I'm
+   *  done" signal, rather than relying on the model emitting a bare text turn. */
+  terminalToolName?: string;
 }
 
 export interface LMStudioStructuredOpts<Schema extends z.ZodObject<z.ZodRawShape>>
@@ -306,6 +311,7 @@ export function createLMStudio(config: LMStudioConfig = {}) {
         break;
       }
 
+      let terminalArticle: string | null = null;
       for (const call of choice.message.tool_calls) {
         if (call.type !== 'function') continue;
         const tool = findTool(opts.tools, call.function.name);
@@ -346,6 +352,57 @@ export function createLMStudio(config: LMStudioConfig = {}) {
         };
         steps.push(step);
         opts.onStep?.(step);
+
+        if (opts.terminalToolName && call.function.name === opts.terminalToolName) {
+          terminalArticle = output;
+        }
+      }
+
+      // A terminal tool was called this turn → stop, returning its output as the
+      // final text (no further round-trip). Tool-result messages above are kept
+      // so `messages` stays a valid, inspectable transcript.
+      if (terminalArticle !== null) {
+        finalText = terminalArticle;
+        stop = 'final_answer';
+        break;
+      }
+    }
+
+    // Budget exhausted without a terminal answer — one final tool-free call so an
+    // agent loop that over-searches to the cap still returns an answer, not ''.
+    // `stop` stays 'max_iterations'; with no tools the model must synthesize from
+    // what it already gathered. (Local qwen over-searches, so this path matters.)
+    if (stop === 'max_iterations' && opts.terminalToolName) {
+      safeCall(tracer, 'onRequest', {
+        provider: 'lmstudio',
+        model,
+        operation: 'runTools:synthesize',
+        messageCount: messages.length,
+        toolCount: 0,
+      });
+      const tS = Date.now();
+      const response = await sdk.chat.completions.create({
+        model,
+        max_tokens: opts.maxTokens ?? defaultMaxTokens,
+        ...(opts.temperature !== undefined && { temperature: opts.temperature }),
+        ...buildLMStudioReasoning(opts.reasoning),
+        messages,
+        // No `tools` — force a text answer from what was already gathered.
+      });
+      const choice = response.choices[0];
+      if (choice) {
+        const usage = extractUsage(response.usage);
+        const cost = calculateLMStudioCost(usage);
+        totalUsage = addUsage(totalUsage, usage);
+        totalCost = addCost(totalCost, cost);
+        safeCall(tracer, 'onResponse', {
+          usage,
+          cost,
+          latencyMs: Date.now() - tS,
+          stopReason: choice.finish_reason ?? 'unknown',
+        });
+        messages.push({ role: 'assistant', content: choice.message.content ?? '' });
+        finalText = choice.message.content ?? '';
       }
     }
 

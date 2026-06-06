@@ -8,7 +8,7 @@ Working notes for Claude Code in this repo. Keep tight — every line is context
 
 ## Current state
 
-**Module: 6 — Advanced RAG Techniques COMPLETE (6.1–6.6 done); Module 7 — Agent Fundamentals next**
+**Module: 7 — Agent Fundamentals COMPLETE. `agent/{tools,index,cli}.ts` (`runAgent`, 5 tools incl. `search_within_source`), lib `runTools` gained additive `terminalToolName` (finalize) + forced-finalize on max-iter, `evals/run.ts --agent` mode (same judges + agent metrics; goldCoverage replaces recall@k; chunk_id-labeled faithfulness judge), `lib/langfuse.ts` (`langfuseTracer` over the Tracer seam — trace tree + scores, no-op without keys; add LANGFUSE keys to .env to activate). Clean 50q×2-model A/B: agent beats single-shot for BOTH models (Claude comp 3.40→4.04, faith 4.64→4.72, refusal 92→98%; qwen comp 3.02→3.38). Open→Module 10: contradiction completeness (generation/reading-bound + noisy; prompt-tuning proven below noise floor at n=9 — needs stronger model / variance reduction), qwen over-search + weaker refusal (90%). NEXT MODULE: 8 — MCP Server Design. Full findings + tables: [notes/module-7-agent.md](notes/module-7-agent.md).**
 
 Update the line above whenever a module finishes or the next one starts. The current-module marker is how I keep my bearings between sessions.
 

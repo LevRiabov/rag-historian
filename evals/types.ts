@@ -94,6 +94,36 @@ export interface QuestionResult {
   /** Generation-stage score — present only when the runner was invoked with
    *  --generation. Optional so a retrieval-only run stays light + cheap. */
   generation?: GenerationScore;
+  /** Agent-stage metrics — present only in --agent mode (Module 7). When set,
+   *  retrieval fields (recallAtK/mrr) are NaN: the agent has no single ranked
+   *  top-K, so `agent.goldCoverage` is its retrieval analog instead. */
+  agent?: AgentMetrics;
+}
+
+/**
+ * Per-question agent metrics (Module 7, --agent mode). The headline numbers for
+ * the agent-vs-single-shot and Claude-vs-local A/Bs.
+ */
+export interface AgentMetrics {
+  /** Total tool calls — effort. Ideal curve: ~1 for literal, higher for
+   *  synthesis/contradiction. */
+  toolCalls: number;
+  /** Tool calls grouped by name (e.g. how often search_within_source fired). */
+  toolCallsByName: Record<string, number>;
+  /** Why the loop ended: 'final_answer' | 'max_iterations' | 'cost_cap'. */
+  stop: string;
+  /** Did the model use the finalize tool (vs text-terminating)? A behavioral
+   *  difference observed between Claude and local qwen. */
+  calledFinalize: boolean;
+  /** Distinct chunks the agent's searches surfaced this run. */
+  consultedCount: number;
+  /** Fraction of gold spans covered by ANY consulted chunk — the agent's
+   *  retrieval analog of recall (over the union it gathered). NaN out-of-scope. */
+  goldCoverage: number;
+  /** Wall-clock ms for the whole agent run. */
+  latencyMs: number;
+  /** USD spent driving the loop (0 for local). */
+  costUSD: number;
 }
 
 /**
@@ -164,6 +194,8 @@ export interface BatchResult {
           completeness: number;
           refusalAccuracy: number;
         };
+        /** Per-category agent breakdown when --agent was on. */
+        agent?: AgentAggregate;
       }
     >;
     /**
@@ -179,6 +211,8 @@ export interface BatchResult {
       totalJudgeCostUSD: number;
       totalGeneratorCostUSD: number;
     };
+    /** Top-level agent aggregates, present only when --agent was on. */
+    agent?: AgentAggregate & { totalCostUSD: number };
   };
   /** Configuration used — re-runnable from this. */
   config: {
@@ -197,7 +231,22 @@ export interface BatchResult {
     /** Present when --generation was on. */
     generator?: string;
     judge?: string;
+    /** Agent driver + iteration cap, present when --agent was on (Module 7). */
+    agent?: string;
   };
+}
+
+/** Aggregated agent metrics over a set of questions (overall or per category). */
+export interface AgentAggregate {
+  runs: number;
+  avgToolCalls: number;
+  /** Mean gold coverage over in-scope questions (out-of-scope excluded). */
+  avgGoldCoverage: number;
+  /** Fraction of runs that used the finalize tool (vs text-terminating). */
+  finalizeRate: number;
+  avgConsulted: number;
+  avgLatencyMs: number;
+  avgCostUSD: number;
 }
 
 /** Which k values we measure recall at. Single retrieve call serves all. */

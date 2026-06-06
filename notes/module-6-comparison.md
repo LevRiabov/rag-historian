@@ -177,3 +177,6 @@ completeness **3.40**, faithfulness **4.64**, refusal **92%**.
 - **Open for Module 7:** synthesis + contradiction are generation-bound — a
   read-each-source-then-compare agent or a stronger generator, not a retrieval
   lever.
+- **Module 10 retrieval stretch ideas** (RAPTOR, Qwen3 model swap, fine-tuning,
+  multi-vector, corpus scale-up) — queued with priorities + rationale in
+  [module-10-backlog.md](module-10-backlog.md).

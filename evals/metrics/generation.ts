@@ -127,6 +127,8 @@ export interface Judge {
     question: string,
     chunks: RetrievedChunk[],
     answerText: string,
+    /** Agent mode: label evidence by chunk_id to match [chunk_id] citations. */
+    labelByChunkId?: boolean,
   ): Promise<{ score: number; reasoning: string; unsupportedClaims: string[]; costUSD: number }>;
 
   completeness(
@@ -148,12 +150,17 @@ export function createJudge(model: ClaudeModel = CLAUDE_MODELS.haiku): Judge {
   return {
     label,
 
-    async faithfulness(question, chunks, answerText) {
+    async faithfulness(question, chunks, answerText, labelByChunkId = false) {
       const result = await withRetry(
         () =>
           claude.structured({
             system: FAITHFULNESS_SYSTEM,
-            messages: [{ role: 'user', content: faithfulnessUser(question, chunks, answerText) }],
+            messages: [
+              {
+                role: 'user',
+                content: faithfulnessUser(question, chunks, answerText, labelByChunkId),
+              },
+            ],
             schema: FaithfulnessSchema,
           }),
         'faithfulness',

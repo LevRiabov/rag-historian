@@ -44,17 +44,28 @@ If the answer is a REFUSAL (the assistant declined to answer), score 5 — refus
 
 Return JSON with: score (1-5), reasoning (one or two sentences), unsupportedClaims (array of specific claims from the answer that you could not find in the sources; empty if score is 5).`;
 
+/**
+ * Render the faithfulness prompt: question + numbered source passages + answer.
+ *
+ * `labelByChunkId` (agent mode): label each passage by its real `chunkId`
+ * (e.g. `[1722]`) instead of arrival order (`[1]`). The agent cites by chunk_id,
+ * so arrival-order labels make the judge read correct citations as "fabricated"
+ * (measured in Module 7). Single-shot cites `[1]..[5]` arrival order, so it keeps
+ * the default. Either way the labels must match the answer's citation scheme.
+ */
 export function faithfulnessUser(
   question: string,
   chunks: RetrievedChunk[],
   answerText: string,
+  labelByChunkId = false,
 ): string {
   const lines: string[] = ['Question:', question, '', 'Source passages:'];
   for (let i = 0; i < chunks.length; i++) {
     const c = chunks[i];
     if (!c) continue;
+    const label = labelByChunkId ? c.chunkId : i + 1;
     lines.push('');
-    lines.push(`[${i + 1}] ${c.source.author}, ${c.source.title}, ${c.chapter}`);
+    lines.push(`[${label}] ${c.source.author}, ${c.source.title}, ${c.chapter}`);
     lines.push(c.text.trim());
   }
   lines.push('', 'Candidate answer:', answerText);
@@ -68,6 +79,8 @@ export function faithfulnessUser(
 export const COMPLETENESS_SYSTEM = `You are evaluating the COMPLETENESS of an AI assistant's answer.
 
 Completeness = how much of the ideal answer's substantive factual content is covered by the candidate answer. Stylistic differences (length, tone, ordering) do not matter — only whether the candidate communicates the same key facts.
+
+IMPORTANT — extra content is NEVER penalized. Judge ONLY whether the ideal answer's facts are covered. If the candidate adds extra information, additional sources, or more detail than the ideal answer, that is neutral-to-good — do NOT lower the score for it. Do NOT judge whether the candidate's extra content is accurate or fabricated: that is a separate concern (faithfulness), and you are NOT shown the source passages, so you cannot assess it. Assume anything beyond the ideal is valid and score purely on coverage of the ideal's facts.
 
 Score on a 1-5 scale:
   5 - Complete. Covers essentially every substantive fact in the ideal answer.
