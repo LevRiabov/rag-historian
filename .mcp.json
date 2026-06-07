@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "roman-research": {
+      "command": "pnpm",
+      "args": ["dev", "roman-research/mcp-server/index.ts"]
+    }
+  }
+}
