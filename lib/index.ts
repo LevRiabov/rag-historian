@@ -51,8 +51,30 @@ export type {
   OpenAIEmbedderConfig,
 } from './embeddings.ts';
 export { createEmbedder } from './embeddings.ts';
-export type { CreateLangfuseTracerOpts, LangfuseTraceHandle } from './langfuse.ts';
-export { createLangfuseTracer, flushLangfuse } from './langfuse.ts';
+export type {
+  FallbackCapableClient,
+  FallbackConfig,
+  FallbackTier,
+} from './fallback.ts';
+export { createFallbackClient } from './fallback.ts';
+export type {
+  InputGuardConfig,
+  InputGuardResult,
+  OutputGuardConfig,
+  OutputGuardResult,
+} from './guardrails.ts';
+export { validateInput, validateOutput } from './guardrails.ts';
+export type {
+  CreateLangfuseTracerOpts,
+  LangfuseTraceHandle,
+  ManagedPrompt,
+} from './langfuse.ts';
+export {
+  createLangfuseTracer,
+  flushLangfuse,
+  getManagedPrompt,
+  registerPrompt,
+} from './langfuse.ts';
 export type { LlamacppClient, LlamacppModel } from './llamacpp.ts';
 export { createLlamacpp, LLAMACPP_MODELS } from './llamacpp.ts';
 export type {
@@ -78,8 +100,12 @@ export type {
   PromptVars,
 } from './prompts.ts';
 export { abTest, definePrompt, formatAbTest, tag, tags } from './prompts.ts';
+export type { RateLimiter, RateLimiterConfig } from './rate-limit.ts';
+export { createRateLimiter } from './rate-limit.ts';
 export type { RerankConfig, RerankResponse, RerankResult } from './rerank.ts';
 export { rerank } from './rerank.ts';
+export type { RouteDecision, RouteResult, RouterConfig, RouteTier } from './route.ts';
+export { createRouter, RouteDecisionSchema } from './route.ts';
 export type { AnthropicTool, OpenAITool } from './tools.ts';
 export { defineTool } from './tools.ts';
 export type { RequestInfo, ResponseInfo, ToolCallInfo, Tracer } from './tracer.ts';

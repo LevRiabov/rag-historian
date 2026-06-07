@@ -10,6 +10,8 @@
  *   --llm=<name>     'claude-haiku' (default) | 'claude-sonnet' | 'claude-opus' | 'llamacpp'
  *   --max-iter=<n>   iteration cap (default 30)
  *   --think          llama.cpp only: use the thinking-on profile (qwen-9b-16k-think)
+ *   --no-cache       Claude only: disable prompt caching (to A/B the cost win)
+ *   --fallback       Claude only: wrap in a Claude→local-Qwen fallback chain
  *
  * Needs docker (ParadeDB) + llama-swap (embeddings + rerank, and the chat model
  * if --llm=llamacpp) up.
@@ -65,6 +67,8 @@ const result = await runAgent(db, question, {
   llm,
   maxIterations,
   llamacppModel,
+  cache: !('no-cache' in flags),
+  fallback: 'fallback' in flags,
   tracer: lf.tracer,
   // Live tool-call log: the multi-step behavior we actually want to watch.
   onStep: (step) => {
@@ -84,6 +88,9 @@ console.log(`Stop:       ${result.stop}`);
 console.log(`Tool calls: ${result.toolCalls}  ${JSON.stringify(result.toolCallsByName)}`);
 console.log(
   `Tokens:     in=${result.usage.inputTokens}, out=${result.usage.outputTokens}  |  ${result.costFormatted}  |  ${result.latencyMs}ms`,
+);
+console.log(
+  `Cache:      write=${result.usage.cacheCreationTokens ?? 0}, read=${result.usage.cacheReadTokens ?? 0} tokens`,
 );
 
 await db.end();

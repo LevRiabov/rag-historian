@@ -74,7 +74,13 @@ export interface CallOpts {
   system?: string;
   /** Mark the system prompt with cache_control. Use for large stable system
    *  prompts — first call writes the cache (1.25× input), later calls read it
-   *  (0.1× input). Net win after just a few calls with the same prefix. */
+   *  (0.1× input). Net win after just a few calls with the same prefix.
+   *
+   *  In `runTools` this ALSO enables rolling conversation caching: each turn the
+   *  loop marks the last message block too, so the next turn re-reads the whole
+   *  growing transcript prefix at 0.1× instead of re-paying full input. With the
+   *  system breakpoint (which caches tools+system before it), an agent loop pays
+   *  full price only for each turn's NEW tokens after the first. See `runTools`. */
   cacheSystem?: boolean;
   /** 0–1; default 1.0. Lower for deterministic tasks. NOTE: ignored when
    *  `reasoning` is set — Anthropic's extended thinking requires temperature=1. */
@@ -333,6 +339,11 @@ export function createClaude(config: ClaudeConfig = {}) {
     const maxIterations = opts.maxIterations ?? 25;
     const costCapUSD = opts.costCapUSD ?? Number.POSITIVE_INFINITY;
     const anthropicTools = opts.tools.map(toAnthropicTool);
+    // When caching, every turn re-reads the system+tools+prior-turns prefix at
+    // 0.1× and pays full price only for this turn's new tokens. The system block
+    // (via makeSystem) caches tools+system; the rolling breakpoint below caches
+    // the growing transcript. Default off → no behavior change for the harness.
+    const cachePrefix = opts.cacheSystem ?? false;
 
     // Message history is Anthropic-shaped from the start to avoid re-translating.
     // Content can be a string (initial messages) OR a content-block array (after
@@ -371,7 +382,7 @@ export function createClaude(config: ClaudeConfig = {}) {
         ...(opts.system !== undefined && {
           system: makeSystem(opts.system, opts.cacheSystem ?? false),
         }),
-        messages: messages as Anthropic.MessageParam[],
+        messages: withRollingCache(messages, cachePrefix),
         tools: anthropicTools,
       });
 
@@ -481,7 +492,7 @@ export function createClaude(config: ClaudeConfig = {}) {
         ...(opts.system !== undefined && {
           system: makeSystem(opts.system, opts.cacheSystem ?? false),
         }),
-        messages: messages as Anthropic.MessageParam[],
+        messages: withRollingCache(messages, cachePrefix),
         // No `tools` — force a text answer from what was already gathered.
       });
       const usage = extractUsage(response.usage);
@@ -605,6 +616,42 @@ export function createClaude(config: ClaudeConfig = {}) {
 function makeSystem(text: string, cache: boolean) {
   if (!cache) return text;
   return [{ type: 'text' as const, text, cache_control: { type: 'ephemeral' as const } }];
+}
+
+/**
+ * Agent-loop caching: place a cache_control breakpoint on the LAST content block
+ * of the LAST message. This is the "rolling" breakpoint — each turn we cache the
+ * conversation prefix up to here, so the NEXT turn (whose prefix is byte-identical
+ * up to this point) reads it back at the 0.1× cache_read rate instead of re-paying
+ * full input for the entire growing transcript. Anthropic finds the longest cached
+ * prefix automatically, so moving the single breakpoint to the latest turn each
+ * iteration is enough.
+ *
+ * Returns a shallow copy with the marker applied — never mutates the caller's
+ * `messages`, so the history we keep appending to stays un-marked and old
+ * breakpoints don't accumulate. A string content is wrapped into a one-element
+ * text-block array so cache_control has a block to attach to (Anthropic accepts
+ * cache_control on text / tool_use / tool_result blocks alike).
+ *
+ * When `cache` is false this is the identity (just the cast the loop needs).
+ */
+function withRollingCache(
+  messages: ReadonlyArray<{ role: 'user' | 'assistant'; content: unknown }>,
+  cache: boolean,
+): Anthropic.MessageParam[] {
+  const idx = messages.length - 1;
+  const last = messages[idx];
+  if (!cache || !last) return messages as Anthropic.MessageParam[];
+  const blocks = Array.isArray(last.content)
+    ? [...last.content]
+    : [{ type: 'text', text: String(last.content) }];
+  blocks[blocks.length - 1] = {
+    ...(blocks[blocks.length - 1] as Record<string, unknown>),
+    cache_control: { type: 'ephemeral' as const },
+  };
+  const out = messages.slice();
+  out[idx] = { role: last.role, content: blocks };
+  return out as Anthropic.MessageParam[];
 }
 
 function toAnthropicMessage(m: Message): { role: 'user' | 'assistant'; content: string } {

@@ -147,3 +147,82 @@ export async function flushLangfuse(): Promise<void> {
   const client = getClient();
   if (client) await client.flushAsync();
 }
+
+// ============================================================================
+// Prompt versioning (Module 9)
+// ============================================================================
+//
+// Langfuse "prompt management": each prompt NAME holds a stack of numbered
+// VERSIONS, with movable LABELS (e.g. `production`) pointing at one version.
+// Workflow: registerPrompt() tags a new version → getManagedPrompt() fetches the
+// `production`-labelled one at runtime → rollback is moving the label in the UI
+// (or another registerPrompt with that label). The in-code const is always the
+// FALLBACK, so the agent runs unchanged when Langfuse is down or keys are absent —
+// same philosophy as the no-op tracer.
+
+export interface ManagedPrompt {
+  text: string;
+  /** Langfuse version number, or null when served from the in-code fallback. */
+  version: number | null;
+  source: 'langfuse' | 'fallback';
+}
+
+function isFallback(p: unknown): boolean {
+  return Boolean((p as { isFallback?: boolean })?.isFallback);
+}
+
+/**
+ * Fetch a prompt by label at runtime, falling back to `fallbackText` whenever
+ * Langfuse is disabled/unreachable or the prompt isn't registered yet. Cached by
+ * the SDK (cacheTtlSeconds) so a 50-question eval makes ~one network call.
+ */
+export async function getManagedPrompt(
+  name: string,
+  fallbackText: string,
+  opts: { label?: string; cacheTtlSeconds?: number } = {},
+): Promise<ManagedPrompt> {
+  const client = getClient();
+  if (!client) return { text: fallbackText, version: null, source: 'fallback' };
+  try {
+    const p = await client.getPrompt(name, undefined, {
+      label: opts.label ?? 'production',
+      cacheTtlSeconds: opts.cacheTtlSeconds ?? 60,
+      type: 'text',
+      fallback: fallbackText,
+    });
+    if (isFallback(p)) return { text: fallbackText, version: null, source: 'fallback' };
+    const text = typeof p.prompt === 'string' ? p.prompt : fallbackText;
+    return { text, version: p.version ?? null, source: 'langfuse' };
+  } catch {
+    return { text: fallbackText, version: null, source: 'fallback' };
+  }
+}
+
+/**
+ * Register a prompt version under the given labels (default `production`). Skips
+ * creation when the currently-labelled version is byte-identical, so re-running a
+ * register script doesn't spam new versions. Returns whether it created one.
+ */
+export async function registerPrompt(
+  name: string,
+  text: string,
+  opts: { labels?: string[] } = {},
+): Promise<{ created: boolean; version: number | null }> {
+  const client = getClient();
+  if (!client) return { created: false, version: null };
+  const labels = opts.labels ?? ['production'];
+  try {
+    const current = await client.getPrompt(name, undefined, {
+      label: labels[0],
+      cacheTtlSeconds: 0,
+      type: 'text',
+    });
+    if (!isFallback(current) && current.prompt === text) {
+      return { created: false, version: current.version ?? null };
+    }
+  } catch {
+    // Not found / first registration → fall through to create.
+  }
+  const created = await client.createPrompt({ name, type: 'text', prompt: text, labels });
+  return { created: true, version: created.version ?? null };
+}
