@@ -575,3 +575,61 @@ Langfuse trace tree + scores. **Result: agent beats single-shot RAG on both mode
 Open gaps handed to Module 10: contradiction completeness (generation/reading-bound
 + noisy — needs a stronger model / variance reduction), qwen over-search + weaker
 refusal. Pitfall honored: single agent + good tools, no multi-agent.
+
+---
+
+## Closing experiment — the full all-Sonnet A/B (F19's promise, realized)
+
+F19 spot-checked Sonnet on 4 hard Qs and parked the full run for M10. Run at the
+end of Phase 1 as the case-study capstone: **all 50 Qs, Claude Sonnet 4.6 driver,
+Sonnet judge** (`evals/results/2026-06-08-agent-sonnet-50q.json`). Compared to the
+Haiku agent with **Sonnet-judged completeness** (so the completeness column is a
+clean, judge-consistent A/B; faithfulness is NOT — Haiku's was Haiku-judged).
+
+| metric | Haiku agent | Sonnet agent | Δ |
+|---|---:|---:|---:|
+| Completeness (both Sonnet-judged) | 4.24 | **4.62** | **+0.38** |
+| Faithfulness | 4.72 † | 4.40 † | −0.32 † |
+| Refusal acc. | 98% | 96% | −2 |
+| avg tools/q | 6.9 | 8.3 | +1.4 |
+| gold coverage | 76% | 80% | +4 |
+| gen cost/50q | $1.28 | $2.01 | 1.6× |
+| latency/q | 26.8s | 30.7s | +4s |
+
+† faith not judge-consistent (Haiku-judged vs Sonnet-judged) — don't read the Δ.
+
+**Per-category completeness (both Sonnet-judged) — the win scales with difficulty:**
+
+| cat | Haiku C | Sonnet C | Δ |
+|---|---:|---:|---:|
+| literal | 4.56 | 4.78 | +0.22 |
+| synonym | 4.38 | 4.50 | +0.13 |
+| multi-hop | 4.22 | 4.89 | +0.67 |
+| contradiction | 3.89 | 4.67 | +0.78 |
+| **synthesis** | 3.50 | **4.63** | **+1.13** |
+| out-of-scope | 5.00 | 4.14 | **−0.86** |
+
+**F21 — Sonnet's completeness win is concentrated in the reasoning-bound categories,
+and SYNTHESIS is the headline.** Synthesis coverage barely moved (52→56% — still
+retrieval-bound) yet completeness jumped +1.13 → the stronger reasoner converts the
+SAME partial evidence into a far more complete answer. This is the cleanest
+confirmation yet of the M6/M7 thesis (synthesis + contradiction are generation-bound).
+F19's n=4 signal held at n=50.
+
+**F22 — "best quality" is NOT strictly dominant: Sonnet's out-of-scope refusal
+regressed (86→71%).** It answered 2/7 OOS Qs it should have declined — q-047
+caesar-salad, q-050 augustus-successor, both *Caesar-adjacent*, exactly where a
+confident model rationalizes a plausible answer (Haiku leaked 1). Those unsupported
+answers (F=2–3) also pull the aggregate faithfulness down. So the frontier model buys
+the reasoning gains at the cost of 1.6× spend AND a looser refusal boundary.
+
+**F23 — F22's per-category shape retroactively justifies the M9 router.** Sonnet's
+gains land in the categories a router ESCALATES (multi-hop/synthesis/contradiction);
+its losses land in the easy/OOS categories a router KEEPS on Haiku. Route hard up,
+keep easy/OOS down → capture Sonnet's synthesis/contradiction wins while keeping
+Haiku's tighter refusal + lower cost. The router (74% acc, 3/26 dangerous misroutes)
+is built; SHIPPING the policy is the natural Module-10 move, now with the data behind
+it. (Routing was deliberately NOT wired into this run — user steer was best-quality
+all-Sonnet; the M9 classifier-accuracy eval stands as the routing evidence.)
+
+This is the Phase-1 capstone number. The case study is the top-level README.
